@@ -64,9 +64,17 @@ app.get(['/api/data', '/data'], async (req, res) => {
   let totalExpense = 0;
   let totalPaid = 0;
   let totalPending = 0;
+  let creditCardExpenses = 0;
+  let fixedExpenses = 0;
 
   const expensesByAccount = {};
   const expensesByCategory = {};
+
+  // Mapa de tipo de conta
+  const accountTypeMap = {};
+  (db.accounts || []).forEach(acc => {
+    accountTypeMap[acc.name] = acc.type;
+  });
 
   monthTransactions.forEach(t => {
     const amount = Number(t.amount) || 0;
@@ -80,12 +88,21 @@ app.get(['/api/data', '/data'], async (req, res) => {
         totalPending += amount;
       }
 
+      const accType = accountTypeMap[t.account];
+      if (accType === 'credit_card' || (t.account && t.account.toLowerCase().includes('cartão')) || (t.account && t.account.toLowerCase().includes('fatura'))) {
+        creditCardExpenses += amount;
+      } else {
+        fixedExpenses += amount;
+      }
+
       expensesByAccount[t.account] = (expensesByAccount[t.account] || 0) + amount;
       expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + amount;
     }
   });
 
   const netBalance = totalIncome - totalExpense;
+  // O que ainda pode gastar no cartão antes de estourar a receita total esperada (salário + entradas - outros gastos)
+  const availableToSpend = Math.max(0, totalIncome - totalExpense);
 
   res.json({
     month,
@@ -98,6 +115,9 @@ app.get(['/api/data', '/data'], async (req, res) => {
       netBalance,
       totalPaid,
       totalPending,
+      creditCardExpenses,
+      fixedExpenses,
+      availableToSpend,
       expensesByAccount,
       expensesByCategory
     }

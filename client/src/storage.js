@@ -31,9 +31,16 @@ export function computeMonthData(db, month = '2026-10') {
   let totalExpense = 0;
   let totalPaid = 0;
   let totalPending = 0;
+  let creditCardExpenses = 0;
+  let fixedExpenses = 0;
 
   const expensesByAccount = {};
   const expensesByCategory = {};
+
+  const accountTypeMap = {};
+  (db.accounts || []).forEach(acc => {
+    accountTypeMap[acc.name] = acc.type;
+  });
 
   transactions.forEach(t => {
     const amount = Number(t.amount) || 0;
@@ -46,12 +53,21 @@ export function computeMonthData(db, month = '2026-10') {
       } else {
         totalPending += amount;
       }
+
+      const accType = accountTypeMap[t.account];
+      if (accType === 'credit_card' || (t.account && t.account.toLowerCase().includes('cartão')) || (t.account && t.account.toLowerCase().includes('fatura'))) {
+        creditCardExpenses += amount;
+      } else {
+        fixedExpenses += amount;
+      }
+
       expensesByAccount[t.account] = (expensesByAccount[t.account] || 0) + amount;
       expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + amount;
     }
   });
 
   const netBalance = totalIncome - totalExpense;
+  const availableToSpend = Math.max(0, totalIncome - totalExpense);
 
   return {
     month,
@@ -64,6 +80,9 @@ export function computeMonthData(db, month = '2026-10') {
       netBalance,
       totalPaid,
       totalPending,
+      creditCardExpenses,
+      fixedExpenses,
+      availableToSpend,
       expensesByAccount,
       expensesByCategory
     }

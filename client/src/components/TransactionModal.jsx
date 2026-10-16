@@ -128,15 +128,18 @@ export function TransactionModal({
               onClick={() => setType('expense')}
               sx={{ fontWeight: 600 }}
             >
-              Despesa (Gasto)
+              Gasto no Cartão / Despesa
             </Button>
             <Button
               variant={type === 'income' ? 'contained' : 'outlined'}
               color="secondary"
-              onClick={() => setType('income')}
+              onClick={() => {
+                setType('income');
+                if (!category) setCategory('Salário & Entradas');
+              }}
               sx={{ fontWeight: 600 }}
             >
-              Receita (Entrada)
+              Salário / Receita Prevista
             </Button>
           </ButtonGroup>
 
