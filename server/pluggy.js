@@ -23,10 +23,58 @@ export async function getPluggyApiKey(clientId, clientSecret) {
 }
 
 /**
- * Busca todas as contas e cartões de crédito conectados
+ * Gera um connectToken para abrir o widget oficial da Pluggy no navegador
  */
-export async function getPluggyAccounts(apiKey) {
-  const response = await fetch(`${PLUGGY_API_URL}/accounts`, {
+export async function createPluggyConnectToken(apiKey, itemId = null) {
+  const body = {};
+  if (itemId) {
+    body.itemId = itemId;
+  }
+  const response = await fetch(`${PLUGGY_API_URL}/connect_token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-KEY': apiKey
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Erro ao gerar connect token na Pluggy (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.accessToken;
+}
+
+/**
+ * Tenta listar os itens (conexões) da organização (caso habilitado no plano)
+ */
+export async function getPluggyItems(apiKey) {
+  try {
+    const response = await fetch(`${PLUGGY_API_URL}/v2/items`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.results || [];
+    }
+  } catch (e) {
+    console.warn('GET /v2/items não disponível:', e.message);
+  }
+  return [];
+}
+
+/**
+ * Busca todas as contas e cartões de crédito conectados a um itemId específico
+ */
+export async function getPluggyAccountsByItem(apiKey, itemId) {
+  const url = itemId ? `${PLUGGY_API_URL}/accounts?itemId=${itemId}` : `${PLUGGY_API_URL}/accounts`;
+  const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
       'X-API-KEY': apiKey
@@ -34,7 +82,8 @@ export async function getPluggyAccounts(apiKey) {
   });
 
   if (!response.ok) {
-    throw new Error(`Erro ao buscar contas na Pluggy: ${response.statusText}`);
+    const errText = await response.text();
+    throw new Error(`Erro ao buscar contas na Pluggy (${response.status}): ${errText}`);
   }
 
   const data = await response.json();

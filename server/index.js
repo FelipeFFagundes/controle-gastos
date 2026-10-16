@@ -7,7 +7,9 @@ import { initialData } from './seed.js';
 import { getDb, saveDb } from './db.js';
 import { 
   getPluggyApiKey, 
-  getPluggyAccounts, 
+  createPluggyConnectToken,
+  getPluggyItems,
+  getPluggyAccountsByItem,
   getPluggyBills,
   getPluggyTransactions, 
   mapPluggyCategory 
@@ -338,29 +340,82 @@ app.post(['/api/clear', '/clear'], async (req, res) => {
   res.json({ success: true, message: 'Todas as transações foram limpas com sucesso.' });
 });
 
-// 11. Sincronizar transações e faturas via Pluggy (Open Finance)
+// 11. Gerar Connect Token para abrir o Widget Oficial da Pluggy
+app.post(['/api/pluggy/connect-token', '/pluggy/connect-token'], async (req, res) => {
+  try {
+    const clientId = req.body.clientId || process.env.PLUGGY_CLIENT_ID;
+    const clientSecret = req.body.clientSecret || process.env.PLUGGY_CLIENT_SECRET;
+    const itemId = req.body.itemId || null;
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ error: 'Credenciais da Pluggy não fornecidas.' });
+    }
+
+    const apiKey = await getPluggyApiKey(clientId, clientSecret);
+    const connectToken = await createPluggyConnectToken(apiKey, itemId);
+    res.json({ success: true, connectToken });
+  } catch (err) {
+    console.error('Erro ao gerar connect token:', err);
+    res.status(500).json({ error: err.message || 'Erro ao gerar connect token' });
+  }
+});
+
+// 12. Sincronizar transações e faturas via Pluggy (Open Finance)
 app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
   try {
     const clientId = req.body.clientId || process.env.PLUGGY_CLIENT_ID;
     const clientSecret = req.body.clientSecret || process.env.PLUGGY_CLIENT_SECRET;
     const targetMonth = req.body.month;
     const clearBeforeSync = Boolean(req.body.clearExisting);
+    const itemIds = req.body.itemIds || []; // array ou único itemId
 
     if (!clientId || !clientSecret) {
       return res.status(400).json({ 
-        error: 'Credenciais da Pluggy não informadas. Forneça clientId e clientSecret ou configure no ambiente.' 
+        error: 'Credenciais da Pluggy não informadas. Forneça clientId e clientSecret.' 
       });
     }
 
     // 1. Obter token de acesso
     const apiKey = await getPluggyApiKey(clientId, clientSecret);
 
-    // 2. Obter contas e cartões conectados
-    const accounts = await getPluggyAccounts(apiKey);
+    // 2. Coletar os itemIds para buscar contas
+    const targetItemIds = new Set();
+    if (Array.isArray(itemIds)) {
+      itemIds.forEach(id => id && targetItemIds.add(id.trim()));
+    } else if (typeof itemIds === 'string' && itemIds.trim()) {
+      targetItemIds.add(itemIds.trim());
+    }
+
+    // Tenta também buscar os itens registrados via API caso habilitado
+    const fetchedItems = await getPluggyItems(apiKey);
+    fetchedItems.forEach(it => targetItemIds.add(it.id));
+
+    // Se ainda não temos itemIds, tenta buscar direto /accounts (caso o usuário tenha usado token de item ou endpoint legado)
+    let accounts = [];
+    if (targetItemIds.size > 0) {
+      for (const itemId of targetItemIds) {
+        try {
+          const itemAccounts = await getPluggyAccountsByItem(apiKey, itemId);
+          accounts.push(...itemAccounts);
+        } catch (err) {
+          console.warn(`Erro ao buscar contas do item ${itemId}:`, err.message);
+        }
+      }
+    } else {
+      try {
+        accounts = await getPluggyAccountsByItem(apiKey, null);
+      } catch (err) {
+        return res.status(400).json({
+          error: 'Nenhuma conexão ativa encontrada. Use o botão "Conectar Novo Banco" para vincular seu Itaú, Nubank ou XP via widget oficial da Pluggy!',
+          needsConnect: true
+        });
+      }
+    }
+
     if (!accounts || accounts.length === 0) {
       return res.json({
         success: true,
-        message: 'Nenhuma conta encontrada conectada na Pluggy.',
+        message: 'Nenhuma conta encontrada para as conexões informadas.',
         importedCount: 0
       });
     }
