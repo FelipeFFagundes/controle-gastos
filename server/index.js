@@ -22,6 +22,16 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Normalização de URL para Vercel Serverless
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/index.js')) {
+    req.url = req.url.replace('/api/index.js', '') || '/';
+  } else if (req.url.startsWith('/index.js')) {
+    req.url = req.url.replace('/index.js', '') || '/';
+  }
+  next();
+});
+
 // Helper para adicionar meses (YYYY-MM)
 function addMonths(monthStr, count) {
   const [year, month] = monthStr.split('-').map(Number);
@@ -31,10 +41,10 @@ function addMonths(monthStr, count) {
   return `${y}-${m}`;
 }
 
-// --- ROTAS DA API ---
+// --- ROTAS DA API (Compatíveis com e sem prefixo /api) ---
 
 // 1. Obter lista de meses disponíveis
-app.get('/api/months', async (req, res) => {
+app.get(['/api/months', '/months'], async (req, res) => {
   const db = await getDb();
   const monthsSet = new Set(db.transactions.map(t => t.month));
   monthsSet.add('2026-10');
@@ -43,7 +53,7 @@ app.get('/api/months', async (req, res) => {
 });
 
 // 2. Obter dados completos de um mês específico
-app.get('/api/data', async (req, res) => {
+app.get(['/api/data', '/data'], async (req, res) => {
   const db = await getDb();
   const month = req.query.month || '2026-10';
 
@@ -94,7 +104,7 @@ app.get('/api/data', async (req, res) => {
 });
 
 // 3. Obter todos os parcelamentos ativos
-app.get('/api/installments', async (req, res) => {
+app.get(['/api/installments', '/installments'], async (req, res) => {
   const db = await getDb();
   const currentMonth = req.query.month || '2026-10';
 
@@ -140,7 +150,7 @@ app.get('/api/installments', async (req, res) => {
 });
 
 // 4. Criar nova transação
-app.post('/api/transactions', async (req, res) => {
+app.post(['/api/transactions', '/transactions'], async (req, res) => {
   const db = await getDb();
   const {
     description,
@@ -221,7 +231,7 @@ app.post('/api/transactions', async (req, res) => {
 });
 
 // 5. Atualizar transação
-app.put('/api/transactions/:id', async (req, res) => {
+app.put(['/api/transactions/:id', '/transactions/:id'], async (req, res) => {
   const db = await getDb();
   const { id } = req.params;
   const index = db.transactions.findIndex(t => t.id === id);
@@ -254,7 +264,7 @@ app.put('/api/transactions/:id', async (req, res) => {
 });
 
 // 6. Alternar status pago/pendente
-app.patch('/api/transactions/:id/toggle-paid', async (req, res) => {
+app.patch(['/api/transactions/:id/toggle-paid', '/transactions/:id/toggle-paid'], async (req, res) => {
   const db = await getDb();
   const { id } = req.params;
   const transaction = db.transactions.find(t => t.id === id);
@@ -269,7 +279,7 @@ app.patch('/api/transactions/:id/toggle-paid', async (req, res) => {
 });
 
 // 7. Deletar transação
-app.delete('/api/transactions/:id', async (req, res) => {
+app.delete(['/api/transactions/:id', '/transactions/:id'], async (req, res) => {
   const db = await getDb();
   const { id } = req.params;
   const initialLength = db.transactions.length;
@@ -285,13 +295,13 @@ app.delete('/api/transactions/:id', async (req, res) => {
 });
 
 // 8. Restaurar dados iniciais
-app.post('/api/reset-seed', async (req, res) => {
+app.post(['/api/reset-seed', '/reset-seed'], async (req, res) => {
   await saveDb(initialData);
   res.json({ success: true, message: 'Dados restaurados para o padrão de Outubro de 2026.' });
 });
 
 // 9. Status da integração Pluggy
-app.get('/api/pluggy/status', (req, res) => {
+app.get(['/api/pluggy/status', '/pluggy/status'], (req, res) => {
   const isConfigured = Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET);
   res.json({
     configured: isConfigured,
@@ -300,7 +310,7 @@ app.get('/api/pluggy/status', (req, res) => {
 });
 
 // 10. Sincronizar transações via Pluggy (Open Finance)
-app.post('/api/pluggy/sync', async (req, res) => {
+app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
   try {
     const clientId = req.body.clientId || process.env.PLUGGY_CLIENT_ID;
     const clientSecret = req.body.clientSecret || process.env.PLUGGY_CLIENT_SECRET;

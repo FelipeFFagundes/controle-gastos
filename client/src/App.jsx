@@ -41,20 +41,23 @@ import { TransactionModal } from './components/TransactionModal';
 import { InstallmentsTracker } from './components/InstallmentsTracker';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { PluggySyncModal } from './components/PluggySyncModal';
+import { getLocalDb, saveLocalDb, computeMonthData, computeInstallments } from './storage';
+import { defaultInitialData } from './initialData';
 
 export default function App() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [currentMonth, setCurrentMonth] = useState('2026-10');
   const [availableMonths, setAvailableMonths] = useState(['2026-10']);
-  const [data, setData] = useState({
-    categories: [],
-    accounts: [],
-    transactions: [],
-    summary: {}
-  });
-  const [installments, setInstallments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Carrega instantaneamente do storage local (0ms, sem depender de rede)
+  const initialLocalDb = getLocalDb();
+  const initialMonthData = computeMonthData(initialLocalDb, '2026-10');
+  const initialInstallments = computeInstallments(initialLocalDb, '2026-10');
+
+  const [data, setData] = useState(initialMonthData);
+  const [installments, setInstallments] = useState(initialInstallments);
+  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(0); // 0: dashboard, 1: installments
   const [selectedAccountFilter, setSelectedAccountFilter] = useState('');
 
@@ -74,39 +77,57 @@ export default function App() {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
-  // Carrega meses
+  // Carrega meses disponíveis
   const fetchMonths = async () => {
     try {
       const res = await fetch('/api/months');
-      const json = await res.json();
-      if (json.months && json.months.length > 0) {
-        setAvailableMonths(json.months);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.months && json.months.length > 0) {
+          setAvailableMonths(json.months);
+          return;
+        }
       }
     } catch (err) {
-      console.error('Erro ao buscar meses:', err);
+      // Ignora erro silenciosamente para usar local
     }
+    // Fallback local
+    const db = getLocalDb();
+    const monthsSet = new Set((db.transactions || []).map(t => t.month));
+    monthsSet.add('2026-10');
+    setAvailableMonths(Array.from(monthsSet).sort());
   };
 
-  // Carrega dados do mês
+  // Carrega dados do mês (híbrido: local imediato + sincronização com API)
   const fetchData = async (month) => {
-    setLoading(true);
+    const targetMonth = month || currentMonth;
+    // 1. Atualiza imediatamente a partir do banco local
+    const db = getLocalDb();
+    setData(computeMonthData(db, targetMonth));
+    setInstallments(computeInstallments(db, targetMonth));
+
+    // 2. Tenta sincronizar com o backend
     try {
-      const targetMonth = month || currentMonth;
       const [resData, resInst] = await Promise.all([
         fetch(`/api/data?month=${targetMonth}`),
         fetch(`/api/installments?month=${targetMonth}`)
       ]);
 
-      const jsonData = await resData.json();
-      const jsonInst = await resInst.json();
+      if (resData.ok && resInst.ok) {
+        const jsonData = await resData.json();
+        const jsonInst = await resInst.json();
 
-      setData(jsonData);
-      setInstallments(jsonInst.installments || []);
+        // Se o servidor retornou dados válidos
+        if (jsonData.transactions) {
+          setData(jsonData);
+          setInstallments(jsonInst.installments || []);
+          // Atualiza o banco local com os dados mais recentes do servidor
+          db.transactions = jsonData.transactions;
+          saveLocalDb(db);
+        }
+      }
     } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-      showToast('Erro ao carregar dados do servidor.', 'error');
-    } finally {
-      setLoading(false);
+      console.log('Operando em modo local:', err);
     }
   };
 
@@ -136,77 +157,147 @@ export default function App() {
     return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`;
   };
 
-  // Salvar transação
+  // Helper para adicionar meses (YYYY-MM)
+  const addMonths = (monthStr, count) => {
+    const [year, month] = monthStr.split('-').map(Number);
+    const date = new Date(year, month - 1 + count, 1);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  };
+
+  // Salvar transação (local imediato + API em paralelo)
   const handleSaveTransaction = async (formData) => {
-    try {
-      if (editingTransaction) {
-        const res = await fetch(`/api/transactions/${editingTransaction.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
-        });
-        if (!res.ok) throw new Error('Falha ao atualizar');
-        showToast('Lançamento atualizado!');
+    const db = getLocalDb();
+
+    if (editingTransaction) {
+      const idx = db.transactions.findIndex(t => t.id === editingTransaction.id);
+      if (idx !== -1) {
+        db.transactions[idx] = {
+          ...db.transactions[idx],
+          ...formData,
+          month: formData.date ? formData.date.substring(0, 7) : db.transactions[idx].month
+        };
+      }
+      showToast('Lançamento atualizado!');
+      // Background API sync
+      fetch(`/api/transactions/${editingTransaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      }).catch(() => {});
+    } else {
+      const {
+        description,
+        amount,
+        type,
+        category,
+        account,
+        date,
+        paid = false,
+        isInstallment = false,
+        currentInstallment = 1,
+        totalInstallments = 1,
+        generateFutureMonths = true
+      } = formData;
+
+      const baseDate = new Date(date);
+      const baseMonth = date.substring(0, 7);
+      const numAmount = Number(amount);
+
+      if (isInstallment && totalInstallments > 1 && generateFutureMonths) {
+        const startNum = Number(currentInstallment);
+        const totalNum = Number(totalInstallments);
+
+        for (let i = startNum; i <= totalNum; i++) {
+          const monthOffset = i - startNum;
+          const targetMonth = addMonths(baseMonth, monthOffset);
+          const targetDate = new Date(baseDate);
+          targetDate.setMonth(targetDate.getMonth() + monthOffset);
+          const formattedDate = targetDate.toISOString().split('T')[0];
+
+          db.transactions.push({
+            id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+            description: description.trim(),
+            amount: numAmount,
+            type: type || 'expense',
+            category,
+            account,
+            date: formattedDate,
+            month: targetMonth,
+            paid: i === startNum ? Boolean(paid) : false,
+            installment: {
+              current: i,
+              total: totalNum
+            }
+          });
+        }
       } else {
-        const res = await fetch('/api/transactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+        db.transactions.push({
+          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+          description: description.trim(),
+          amount: numAmount,
+          type: type || 'expense',
+          category,
+          account,
+          date,
+          month: baseMonth,
+          paid: Boolean(paid),
+          installment: isInstallment && totalInstallments > 1 ? {
+            current: Number(currentInstallment),
+            total: Number(totalInstallments)
+          } : null
         });
-        if (!res.ok) throw new Error('Falha ao criar');
-        showToast('Nova compra registrada!');
       }
 
-      setIsModalOpen(false);
-      setEditingTransaction(null);
-      await fetchMonths();
-      await fetchData(currentMonth);
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao salvar lançamento.', 'error');
+      showToast('Nova compra registrada!');
+      // Background API sync
+      fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      }).catch(() => {});
     }
+
+    saveLocalDb(db);
+    setIsModalOpen(false);
+    setEditingTransaction(null);
+    fetchMonths();
+    fetchData(currentMonth);
   };
 
-  // Alternar status pago/pendente
-  const handleTogglePaid = async (id) => {
-    try {
-      const res = await fetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' });
-      if (!res.ok) throw new Error('Falha ao alterar status');
+  // Alternar status pago/pendente (local imediato + API em paralelo)
+  const handleTogglePaid = (id) => {
+    const db = getLocalDb();
+    const tx = db.transactions.find(t => t.id === id);
+    if (tx) {
+      tx.paid = !tx.paid;
+      saveLocalDb(db);
       fetchData(currentMonth);
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao atualizar status.', 'error');
+      fetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' }).catch(() => {});
     }
   };
 
-  // Deletar transação
-  const handleDeleteTransaction = async (id) => {
+  // Deletar transação (local imediato + API em paralelo)
+  const handleDeleteTransaction = (id) => {
     if (!window.confirm('Tem certeza que deseja remover este lançamento?')) return;
-    try {
-      const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Falha ao excluir');
-      showToast('Lançamento removido.');
-      fetchData(currentMonth);
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao excluir lançamento.', 'error');
-    }
+    const db = getLocalDb();
+    db.transactions = db.transactions.filter(t => t.id !== id);
+    saveLocalDb(db);
+    showToast('Lançamento removido.');
+    fetchData(currentMonth);
+    fetch(`/api/transactions/${id}`, { method: 'DELETE' }).catch(() => {});
   };
 
   // Restaurar dados originais da planilha
-  const handleResetSeed = async () => {
+  const handleResetSeed = () => {
     if (!window.confirm('Restaurar os dados originais da planilha de Outubro 2026?')) return;
-    try {
-      const res = await fetch('/api/reset-seed', { method: 'POST' });
-      if (!res.ok) throw new Error('Falha ao resetar');
-      showToast('Dados restaurados com base na Planilha Controle!');
-      setCurrentMonth('2026-10');
-      await fetchMonths();
-      await fetchData('2026-10');
-    } catch (err) {
-      console.error(err);
-      showToast('Erro ao restaurar dados.', 'error');
-    }
+    saveLocalDb(defaultInitialData);
+    showToast('Dados restaurados com base na Planilha Controle!');
+    setCurrentMonth('2026-10');
+    fetchMonths();
+    fetchData('2026-10');
+    fetch('/api/reset-seed', { method: 'POST' }).catch(() => {});
   };
 
   return (
