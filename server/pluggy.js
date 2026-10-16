@@ -117,10 +117,10 @@ export async function getPluggyBills(apiKey, accountId) {
 
 /**
  * Busca as transações de uma conta a partir de uma data inicial (YYYY-MM-DD)
- * Opcionalmente filtra por billId (fatura de cartão)
+ * Suporta endpoint oficial /v2/transactions e trata contas inativas/encerradas (410 Gone)
  */
 export async function getPluggyTransactions(apiKey, accountId, fromDate, billId = null) {
-  let url = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500`;
+  let url = `${PLUGGY_API_URL}/v2/transactions?accountId=${accountId}&pageSize=500`;
   if (fromDate) {
     url += `&from=${fromDate}`;
   }
@@ -128,15 +128,36 @@ export async function getPluggyTransactions(apiKey, accountId, fromDate, billId 
     url += `&billId=${billId}`;
   }
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
       'X-API-KEY': apiKey
     }
   });
 
+  // Fallback para endpoint v1 caso /v2 não esteja habilitado
+  if (response.status === 404) {
+    let legacyUrl = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500`;
+    if (fromDate) legacyUrl += `&from=${fromDate}`;
+    if (billId) legacyUrl += `&billId=${billId}`;
+    response = await fetch(legacyUrl, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      }
+    });
+  }
+
+  // Se a conta retornou 410 Gone ou 404, significa que essa subconta/cartão específico foi desconectado ou não mantém mais histórico na Pluggy
+  if (response.status === 410 || response.status === 404) {
+    console.warn(`Conta ${accountId} retornou ${response.status} (${response.statusText}). Ignorando e continuando com as demais contas ativas.`);
+    return [];
+  }
+
   if (!response.ok) {
-    throw new Error(`Erro ao buscar transações da conta ${accountId}: ${response.statusText}`);
+    const errorText = await response.text();
+    console.warn(`Aviso ao buscar transações da conta ${accountId} (${response.status}): ${errorText}`);
+    return [];
   }
 
   const data = await response.json();

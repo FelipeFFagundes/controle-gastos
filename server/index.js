@@ -481,8 +481,13 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
         billsCount += bills.length;
       }
 
-      // Buscar transações
-      const pluggyTxs = await getPluggyTransactions(apiKey, acc.id, fromDate);
+      // Buscar transações com resiliência para contas inativas/antigas
+      let pluggyTxs = [];
+      try {
+        pluggyTxs = await getPluggyTransactions(apiKey, acc.id, fromDate);
+      } catch (err) {
+        console.warn(`Erro não fatal ao buscar transações da conta ${acc.id} (${bankName}):`, err.message);
+      }
 
       for (const ptx of pluggyTxs) {
         const alreadyExists = db.transactions.some(t => 
