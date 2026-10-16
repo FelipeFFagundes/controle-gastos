@@ -102,14 +102,19 @@ app.get(['/api/data', '/data'], async (req, res) => {
     }
   });
 
+  const customSurplusMap = db.customSurplus || {};
+  const customSurplusTarget = customSurplusMap[month] !== undefined ? Number(customSurplusMap[month]) : null;
+
   const netBalance = totalIncome - totalExpense;
-  // O que ainda pode gastar no cartão antes de estourar a receita total esperada (salário + entradas - outros gastos)
-  const availableToSpend = Math.max(0, totalIncome - totalExpense);
+  const targetSurplus = customSurplusTarget !== null ? customSurplusTarget : 0;
+  // O que ainda pode gastar no cartão antes de estourar a receita total esperada e a meta de sobra definida
+  const availableToSpend = totalIncome - totalExpense - targetSurplus;
 
   res.json({
     month,
     categories: db.categories,
     accounts: db.accounts,
+    customSurplusTarget,
     transactions: monthTransactions,
     summary: {
       totalIncome,
@@ -120,10 +125,30 @@ app.get(['/api/data', '/data'], async (req, res) => {
       creditCardExpenses,
       fixedExpenses,
       availableToSpend,
+      customSurplusTarget,
       expensesByAccount,
       expensesByCategory
     }
   });
+});
+
+// Atualizar meta de sobra prevista do mês
+app.post(['/api/custom-surplus', '/custom-surplus'], async (req, res) => {
+  const { month, target } = req.body;
+  if (!month) {
+    return res.status(400).json({ error: 'Mês não informado.' });
+  }
+  const db = await getDb();
+  if (!db.customSurplus) {
+    db.customSurplus = {};
+  }
+  if (target === null || target === undefined || target === '') {
+    delete db.customSurplus[month];
+  } else {
+    db.customSurplus[month] = Number(target);
+  }
+  await saveDb(db);
+  res.json({ success: true, month, customSurplusTarget: db.customSurplus[month] });
 });
 
 // 3. Obter todos os parcelamentos ativos

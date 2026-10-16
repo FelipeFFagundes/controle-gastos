@@ -302,6 +302,28 @@ export default function App() {
     fetch('/api/clear', { method: 'POST' }).catch(() => {});
   };
 
+  // Atualizar meta de sobra prevista (aumentar/diminuir ou definir valor manual)
+  const handleUpdateCustomSurplus = async (targetVal) => {
+    const db = getLocalDb();
+    if (!db.customSurplus) db.customSurplus = {};
+    if (targetVal === null || targetVal === undefined) {
+      delete db.customSurplus[currentMonth];
+      showToast('Sobra prevista resetada para o cálculo padrão.');
+    } else {
+      db.customSurplus[currentMonth] = Number(targetVal);
+      showToast(`Meta de sobra ajustada para R$ ${Number(targetVal).toFixed(2)}`);
+    }
+    saveLocalDb(db);
+    fetchData(currentMonth);
+
+    // Salva no backend
+    fetch('/api/custom-surplus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: currentMonth, target: targetVal })
+    }).catch(() => {});
+  };
+
   // Restaurar dados originais da planilha
   const handleResetSeed = () => {
     if (!window.confirm('Restaurar os dados originais da planilha de Outubro 2026?')) return;
@@ -471,6 +493,7 @@ export default function App() {
               accounts={data.accounts}
               selectedAccountFilter={selectedAccountFilter}
               onSelectAccountFilter={setSelectedAccountFilter}
+              onUpdateCustomSurplus={handleUpdateCustomSurplus}
             />
 
             {/* Listagem de Transações e Barra Lateral */}

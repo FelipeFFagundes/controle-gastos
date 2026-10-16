@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -6,7 +6,14 @@ import {
   Box,
   LinearProgress,
   ButtonBase,
-  Button
+  Button,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Chip
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -14,8 +21,17 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
+import CloseIcon from '@mui/icons-material/Close';
 
-export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '', onSelectAccountFilter }) {
+export function SummaryCards({ 
+  summary, 
+  accounts = [], 
+  selectedAccountFilter = '', 
+  onSelectAccountFilter,
+  onUpdateCustomSurplus
+}) {
   if (!summary) return null;
 
   const {
@@ -27,8 +43,26 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
     creditCardExpenses = 0,
     fixedExpenses = 0,
     availableToSpend = 0,
+    customSurplusTarget = null,
     expensesByAccount = {}
   } = summary;
+
+  const [isEditingSurplus, setIsEditingSurplus] = useState(false);
+  const [surplusInput, setSurplusInput] = useState('');
+
+  const displayedSurplus = customSurplusTarget !== null ? customSurplusTarget : netBalance;
+
+  useEffect(() => {
+    setSurplusInput(displayedSurplus !== undefined ? String(displayedSurplus) : '');
+  }, [displayedSurplus, isEditingSurplus]);
+
+  const handleAdjustStep = (step) => {
+    const current = customSurplusTarget !== null ? customSurplusTarget : netBalance;
+    const nextVal = Math.round((current + step) * 100) / 100;
+    if (onUpdateCustomSurplus) {
+      onUpdateCustomSurplus(nextVal);
+    }
+  };
 
   const formatBRL = (val) => {
     return Number(val || 0).toLocaleString('pt-BR', {
@@ -39,7 +73,7 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
 
   // Quanto da renda total já foi comprometida pelos gastos
   const budgetCommittedPercent = totalIncome > 0 ? Math.min(100, Math.round((totalExpense / totalIncome) * 100)) : 0;
-  const isOverBudget = netBalance < 0;
+  const isOverBudget = availableToSpend < 0;
 
   return (
     <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -182,32 +216,129 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
           </CardContent>
         </Card>
 
-        {/* 4. Sobra Prevista no Fim do Mês */}
+        {/* 4. Sobra Prevista no Fim do Mês (Ajustável) */}
         <Card 
           sx={{ 
             width: '100%',
-            borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(239, 68, 68, 0.25)',
-            bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.04)' : 'rgba(239, 68, 68, 0.04)'
+            borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.35)' : 'rgba(239, 68, 68, 0.35)',
+            bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
           }}
         >
-          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, pb: 1, '&:last-child': { pb: 1.5 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                Sobra Prevista
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                  {customSurplusTarget !== null ? 'Meta de Sobra' : 'Sobra Prevista'}
+                </Typography>
+                {customSurplusTarget !== null && (
+                  <Chip label="Manual" size="small" color="primary" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }} />
+                )}
+              </Box>
               <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: netBalance >= 0 ? 'primary.main' : 'error.main', display: 'flex' }}>
                 <AccountBalanceWalletIcon fontSize="small" />
               </Box>
             </Box>
-            <Typography variant="h5" color={netBalance >= 0 ? 'primary.light' : 'error.main'} sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
-              {formatBRL(netBalance)}
+
+            <Typography variant="h5" color={displayedSurplus >= 0 ? 'primary.light' : 'error.main'} sx={{ mt: 1, fontWeight: 800, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
+              {formatBRL(displayedSurplus)}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {netBalance >= 0 ? 'Sobra após pagar todas faturas' : 'Déficit previsto'}
+
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+              {customSurplusTarget !== null 
+                ? `Real calculado: ${formatBRL(netBalance)}`
+                : (netBalance >= 0 ? 'Sobra após pagar todas faturas' : 'Déficit previsto')}
             </Typography>
+
+            {/* Controles de Ajuste da Sobra: Diminuir / Aumentar / Definir */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5, pt: 1, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <Typography variant="caption" color="text.secondary" fontWeight={500}>
+                Ajustar:
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <IconButton
+                  size="small"
+                  onClick={() => handleAdjustStep(-100)}
+                  title="Diminuir R$ 100 da sobra"
+                  sx={{ p: 0.5, bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' } }}
+                >
+                  <RemoveIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+                <Button
+                  size="small"
+                  variant="text"
+                  onClick={() => setIsEditingSurplus(true)}
+                  sx={{ fontSize: '0.75rem', px: 1, py: 0.25, minWidth: 'auto', textTransform: 'none', fontWeight: 600 }}
+                >
+                  Definir
+                </Button>
+                <IconButton
+                  size="small"
+                  onClick={() => handleAdjustStep(100)}
+                  title="Aumentar R$ 100 na sobra"
+                  sx={{ p: 0.5, bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' } }}
+                >
+                  <AddIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            </Box>
           </CardContent>
         </Card>
       </Box>
+
+      {/* Modal / Dialog para Definir Sobra Manualmente */}
+      <Dialog open={isEditingSurplus} onClose={() => setIsEditingSurplus(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" fontWeight={700}>Ajustar Sobra Prevista</Typography>
+          <IconButton size="small" onClick={() => setIsEditingSurplus(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Defina quanto você deseja planejar que sobre no fim do mês. O app calculará automaticamente seu limite disponível para compras no cartão.
+          </Typography>
+          <TextField
+            label="Valor da Sobra Desejada (R$)"
+            fullWidth
+            type="number"
+            size="small"
+            value={surplusInput}
+            onChange={(e) => setSurplusInput(e.target.value)}
+            placeholder={`Calculado: ${netBalance}`}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          {customSurplusTarget !== null && (
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => {
+                if (onUpdateCustomSurplus) onUpdateCustomSurplus(null);
+                setIsEditingSurplus(false);
+              }}
+            >
+              Resetar para Calculado
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            onClick={() => {
+              if (onUpdateCustomSurplus) {
+                const val = surplusInput === '' ? null : Number(surplusInput);
+                onUpdateCustomSurplus(val);
+              }
+              setIsEditingSurplus(false);
+            }}
+          >
+            Salvar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Cartões / Faturas do Mês com filtro interativo */}
       <Card sx={{ width: '100%', p: { xs: 1.5, sm: 2 } }}>

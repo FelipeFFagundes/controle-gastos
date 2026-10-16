@@ -66,13 +66,20 @@ export function computeMonthData(db, month = '2026-10') {
     }
   });
 
+  // Meta / Ajuste de sobra definida pelo usuário para este mês
+  const customSurplusMap = db.customSurplus || {};
+  const customSurplusTarget = customSurplusMap[month] !== undefined ? Number(customSurplusMap[month]) : null;
+
   const netBalance = totalIncome - totalExpense;
-  const availableToSpend = Math.max(0, totalIncome - totalExpense);
+  // O disponível para gastar respeita a meta de sobra se definida: Salário - Despesas - SobraDesejada
+  const targetSurplus = customSurplusTarget !== null ? customSurplusTarget : 0;
+  const availableToSpend = totalIncome - totalExpense - targetSurplus;
 
   return {
     month,
     categories: db.categories || [],
     accounts: db.accounts || [],
+    customSurplusTarget,
     transactions,
     summary: {
       totalIncome,
@@ -83,6 +90,7 @@ export function computeMonthData(db, month = '2026-10') {
       creditCardExpenses,
       fixedExpenses,
       availableToSpend,
+      customSurplusTarget,
       expensesByAccount,
       expensesByCategory
     }

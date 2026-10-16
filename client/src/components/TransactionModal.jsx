@@ -91,14 +91,14 @@ export function TransactionModal({
       description: description.trim(),
       amount: parseFloat(amount),
       type,
-      category,
+      category: type === 'income' ? 'Salário & Entradas' : (category || 'Outros'),
       account,
       date,
       paid,
-      isInstallment,
+      isInstallment: type === 'expense' ? isInstallment : false,
       currentInstallment: parseInt(currentInstallment, 10),
       totalInstallments: parseInt(totalInstallments, 10),
-      generateFutureMonths: isInstallment && !editTransaction ? generateFutureMonths : false
+      generateFutureMonths: type === 'expense' && isInstallment && !editTransaction ? generateFutureMonths : false
     };
 
     onSave(payload);
@@ -147,18 +147,18 @@ export function TransactionModal({
           <Grid container spacing={2}>
             <Grid item xs={12} sm={8}>
               <TextField
-                label="Descrição da Compra"
+                label={type === 'income' ? 'Descrição da Receita / Salário' : 'Descrição da Compra'}
                 fullWidth
                 size="small"
                 required
-                placeholder="Ex.: Discos, Supermercado, Farm"
+                placeholder={type === 'income' ? 'Ex.: Salário Final do Mês, Bônus, Freelance' : 'Ex.: Discos, Supermercado, Farm'}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </Grid>
             <Grid item xs={12} sm={4}>
               <TextField
-                label="Valor (R$)"
+                label={type === 'income' ? 'Valor Previsto (R$)' : 'Valor (R$)'}
                 fullWidth
                 size="small"
                 required
@@ -174,14 +174,14 @@ export function TransactionModal({
             </Grid>
           </Grid>
 
-          {/* Conta/Cartão e Categoria */}
+          {/* Conta/Cartão e Categoria (Categoria apenas se for despesa) */}
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={type === 'income' ? 6 : 6}>
               <FormControl fullWidth size="small">
-                <InputLabel>Conta / Cartão</InputLabel>
+                <InputLabel>{type === 'income' ? 'Receber Em (Conta / Banco)' : 'Conta / Cartão'}</InputLabel>
                 <Select
                   value={account}
-                  label="Conta / Cartão"
+                  label={type === 'income' ? 'Receber Em (Conta / Banco)' : 'Conta / Cartão'}
                   onChange={(e) => setAccount(e.target.value)}
                 >
                   {accounts.map(acc => (
@@ -193,34 +193,50 @@ export function TransactionModal({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Categoria</InputLabel>
-                <Select
-                  value={category}
-                  label="Categoria"
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  {categories.map(cat => (
-                    <MenuItem key={cat.id} value={cat.name}>
-                      {cat.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+            {type === 'expense' ? (
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Categoria</InputLabel>
+                  <Select
+                    value={category}
+                    label="Categoria"
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    {categories.map(cat => (
+                      <MenuItem key={cat.id} value={cat.name}>
+                        {cat.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            ) : (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Data Prevista de Recebimento"
+                  type="date"
+                  fullWidth
+                  size="small"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+            )}
           </Grid>
 
-          {/* Data */}
-          <TextField
-            label="Data"
-            type="date"
-            fullWidth
-            size="small"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
+          {/* Data para Despesas */}
+          {type === 'expense' && (
+            <TextField
+              label="Data da Compra"
+              type="date"
+              fullWidth
+              size="small"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          )}
 
           {/* Parcelamento */}
           {type === 'expense' && (
@@ -309,8 +325,12 @@ export function TransactionModal({
           <Button onClick={onClose} color="inherit">
             Cancelar
           </Button>
-          <Button type="submit" variant="contained" color="primary">
-            {editTransaction ? 'Salvar Alterações' : 'Registrar Compra'}
+          <Button type="submit" variant="contained" color={type === 'income' ? 'secondary' : 'primary'}>
+            {editTransaction 
+              ? 'Salvar Alterações' 
+              : type === 'income' 
+                ? 'Registrar Salário / Receita' 
+                : 'Registrar Compra'}
           </Button>
         </DialogActions>
       </form>
