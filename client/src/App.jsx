@@ -359,8 +359,8 @@ export default function App() {
             />
 
             {/* Listagem de Transações e Barra Lateral */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
+            <Grid container spacing={{ xs: 2, md: 3 }} sx={{ width: '100%', m: 0 }}>
+              <Grid item xs={12} md={8} sx={{ width: '100%', p: { xs: '0 !important', md: '12px !important' }, mb: { xs: 2, md: 0 } }}>
                 <TransactionList
                   transactions={data.transactions || []}
                   accounts={data.accounts || []}
@@ -377,8 +377,8 @@ export default function App() {
               </Grid>
 
               {/* Barra Lateral */}
-              <Grid item xs={12} md={4}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+              <Grid item xs={12} md={4} sx={{ width: '100%', p: { xs: '0 !important', md: '12px !important' } }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <CategoryBreakdown
                     expensesByCategory={data.summary?.expensesByCategory || {}}
                     categories={data.categories || []}

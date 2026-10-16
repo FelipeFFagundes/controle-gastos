@@ -1,14 +1,12 @@
 import React from 'react';
 import {
-  Grid,
   Card,
   CardContent,
   Typography,
   Box,
   LinearProgress,
   ButtonBase,
-  Button,
-  Stack
+  Button
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -39,129 +37,128 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
   const paidPercentage = totalExpense > 0 ? Math.round((totalPaid / totalExpense) * 100) : 0;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
-      {/* Cards Principais: No Mobile ficam exatamente um em cima do outro (xs=12) de forma compacta e coesa */}
-      <Grid container spacing={{ xs: 1.25, sm: 2 }}>
+    <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {/* Cards de Resumo: No Mobile (xs) ficam 1 coluna 100% largura, empilhados e centralizados */}
+      <Box
+        sx={{
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' },
+          gap: 1.5
+        }}
+      >
         {/* 1. Receitas */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            sx={{ 
-              height: '100%', 
-              borderColor: 'rgba(16, 185, 129, 0.25)',
-              bgcolor: 'rgba(16, 185, 129, 0.03)'
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Receitas do Mês
-                </Typography>
-                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.12)', color: 'secondary.main', display: 'flex' }}>
-                  <TrendingUpIcon fontSize="small" />
-                </Box>
+        <Card 
+          sx={{ 
+            width: '100%',
+            borderColor: 'rgba(16, 185, 129, 0.25)',
+            bgcolor: 'rgba(16, 185, 129, 0.04)'
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                Receitas do Mês
+              </Typography>
+              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.15)', color: 'secondary.main', display: 'flex' }}>
+                <TrendingUpIcon fontSize="small" />
               </Box>
-              <Typography variant="h5" color="secondary.main" sx={{ mt: { xs: 1, sm: 1.5 }, fontWeight: 700, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
-                {formatBRL(totalIncome)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Salário e entradas registradas
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Box>
+            <Typography variant="h5" color="secondary.main" sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
+              {formatBRL(totalIncome)}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Salário e entradas registradas
+            </Typography>
+          </CardContent>
+        </Card>
 
         {/* 2. Despesas */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            sx={{ 
-              height: '100%', 
-              borderColor: 'rgba(244, 63, 94, 0.25)',
-              bgcolor: 'rgba(244, 63, 94, 0.03)'
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Total de Despesas
-                </Typography>
-                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.12)', color: 'error.main', display: 'flex' }}>
-                  <TrendingDownIcon fontSize="small" />
-                </Box>
+        <Card 
+          sx={{ 
+            width: '100%',
+            borderColor: 'rgba(244, 63, 94, 0.25)',
+            bgcolor: 'rgba(244, 63, 94, 0.04)'
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                Total de Despesas
+              </Typography>
+              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.15)', color: 'error.main', display: 'flex' }}>
+                <TrendingDownIcon fontSize="small" />
               </Box>
-              <Typography variant="h5" color="error.main" sx={{ mt: { xs: 1, sm: 1.5 }, fontWeight: 700, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
-                {formatBRL(totalExpense)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Faturas, compras e fixas
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Box>
+            <Typography variant="h5" color="error.main" sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
+              {formatBRL(totalExpense)}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Faturas, compras e fixas
+            </Typography>
+          </CardContent>
+        </Card>
 
         {/* 3. Saldo Líquido */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card 
-            sx={{ 
-              height: '100%', 
-              borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(245, 158, 11, 0.25)',
-              bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.03)' : 'rgba(245, 158, 11, 0.03)'
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Saldo Líquido
-                </Typography>
-                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.12)' : 'rgba(245, 158, 11, 0.12)', color: netBalance >= 0 ? 'primary.main' : 'warning.main', display: 'flex' }}>
-                  <AccountBalanceWalletIcon fontSize="small" />
-                </Box>
+        <Card 
+          sx={{ 
+            width: '100%',
+            borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+            bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.04)' : 'rgba(245, 158, 11, 0.04)'
+          }}
+        >
+          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                Saldo Líquido
+              </Typography>
+              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.15)' : 'rgba(245, 158, 11, 0.15)', color: netBalance >= 0 ? 'primary.main' : 'warning.main', display: 'flex' }}>
+                <AccountBalanceWalletIcon fontSize="small" />
               </Box>
-              <Typography variant="h5" color={netBalance >= 0 ? 'primary.light' : 'warning.main'} sx={{ mt: { xs: 1, sm: 1.5 }, fontWeight: 700, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
-                {formatBRL(netBalance)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {netBalance >= 0 ? 'Saldo positivo no mês' : 'Despesas superam receitas'}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Box>
+            <Typography variant="h5" color={netBalance >= 0 ? 'primary.light' : 'warning.main'} sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
+              {formatBRL(netBalance)}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {netBalance >= 0 ? 'Saldo positivo no mês' : 'Despesas superam receitas'}
+            </Typography>
+          </CardContent>
+        </Card>
 
         {/* 4. Status Pago vs Pendente */}
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                  Status de Pagamento
-                </Typography>
-                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(99, 102, 241, 0.12)', color: 'info.main', display: 'flex' }}>
-                  <ScheduleIcon fontSize="small" />
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: { xs: 1, sm: 1.5 }, alignItems: 'center' }}>
-                <Typography variant="caption" color="secondary.light" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600 }}>
-                  <CheckCircleIcon sx={{ fontSize: 13 }} /> Pago: {formatBRL(totalPaid)}
-                </Typography>
-                <Typography variant="caption" color="warning.light" fontWeight={600}>
-                  Pendente: {formatBRL(totalPending)}
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate"
-                value={paidPercentage}
-                color="secondary"
-                sx={{ mt: 1.25, height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5 }}>
-                {paidPercentage}% quitado
+        <Card sx={{ width: '100%' }}>
+          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                Status de Pagamento
               </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(99, 102, 241, 0.15)', color: 'info.main', display: 'flex' }}>
+                <ScheduleIcon fontSize="small" />
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, alignItems: 'center' }}>
+              <Typography variant="caption" color="secondary.light" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600 }}>
+                <CheckCircleIcon sx={{ fontSize: 13 }} /> Pago: {formatBRL(totalPaid)}
+              </Typography>
+              <Typography variant="caption" color="warning.light" fontWeight={600}>
+                Pendente: {formatBRL(totalPending)}
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={paidPercentage}
+              color="secondary"
+              sx={{ mt: 1.25, height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5 }}>
+              {paidPercentage}% quitado
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
 
       {/* Cartões / Faturas do Mês com filtro interativo */}
-      <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
+      <Card sx={{ width: '100%', p: { xs: 1.5, sm: 2 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CreditCardIcon fontSize="small" sx={{ color: 'text.secondary' }} />
@@ -176,45 +173,51 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
           )}
         </Box>
 
-        <Grid container spacing={1}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
+            gap: 1,
+            width: '100%'
+          }}
+        >
           {accounts.map(acc => {
             const amount = expensesByAccount[acc.name] || 0;
             const isSelected = selectedAccountFilter === acc.name;
             return (
-              <Grid item xs={6} sm={4} md={2} key={acc.id}>
-                <ButtonBase
-                  onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
-                  sx={{
-                    width: '100%',
-                    p: { xs: 1.25, sm: 1.5 },
-                    borderRadius: 2.5,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    border: '1px solid',
-                    borderColor: isSelected ? 'primary.main' : 'divider',
-                    bgcolor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.05)',
-                      borderColor: 'primary.dark'
-                    }
-                  }}
-                >
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: '80%' }}>
-                      {acc.name}
-                    </Typography>
-                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: acc.color || 'primary.main' }} />
-                  </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
-                    {formatBRL(amount)}
+              <ButtonBase
+                key={acc.id}
+                onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
+                sx={{
+                  width: '100%',
+                  p: { xs: 1.25, sm: 1.5 },
+                  borderRadius: 2.5,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  border: '1px solid',
+                  borderColor: isSelected ? 'primary.main' : 'divider',
+                  bgcolor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.05)',
+                    borderColor: 'primary.dark'
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: '80%' }}>
+                    {acc.name}
                   </Typography>
-                </ButtonBase>
-              </Grid>
+                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: acc.color || 'primary.main' }} />
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
+                  {formatBRL(amount)}
+                </Typography>
+              </ButtonBase>
             );
           })}
-        </Grid>
+        </Box>
       </Card>
     </Box>
   );
