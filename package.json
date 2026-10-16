@@ -1,0 +1,23 @@
+{
+  "name": "controle-gastos",
+  "version": "1.0.0",
+  "description": "Aplicativo Web para controle financeiro e despesas mensais",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "server": "node server/index.js",
+    "client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "vercel-build": "npm --prefix client install && npm --prefix client run build",
+    "build:client": "npm --prefix client run build",
+    "dev": "node server/index.js"
+  },
+  "keywords": ["finance", "gastos", "orcamento", "planilha"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.0.0"
+  }
+}
