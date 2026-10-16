@@ -1,5 +1,5 @@
 // Serviço de integração com a API da Pluggy (Open Finance Brasil)
-// Suporta tanto o ambiente Sandbox quanto Produção / Meu Pluggy (meu.pluggy.ai)
+// Suporta ambiente Sandbox e Produção / Meu Pluggy (meu.pluggy.ai)
 
 const PLUGGY_API_URL = 'https://api.pluggy.ai';
 
@@ -23,7 +23,7 @@ export async function getPluggyApiKey(clientId, clientSecret) {
 }
 
 /**
- * Busca todas as contas conectadas
+ * Busca todas as contas e cartões de crédito conectados
  */
 export async function getPluggyAccounts(apiKey) {
   const response = await fetch(`${PLUGGY_API_URL}/accounts`, {
@@ -42,12 +42,41 @@ export async function getPluggyAccounts(apiKey) {
 }
 
 /**
- * Busca as transações de uma conta a partir de uma data inicial (YYYY-MM-DD)
+ * Busca faturas de um cartão de crédito específico
  */
-export async function getPluggyTransactions(apiKey, accountId, fromDate) {
+export async function getPluggyBills(apiKey, accountId) {
+  try {
+    const response = await fetch(`${PLUGGY_API_URL}/bills?accountId=${accountId}&pageSize=100`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      }
+    });
+
+    if (!response.ok) {
+      console.warn(`Aviso: Bills não disponíveis para conta ${accountId} (${response.status})`);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.results || [];
+  } catch (err) {
+    console.warn(`Erro ao buscar faturas da conta ${accountId}:`, err);
+    return [];
+  }
+}
+
+/**
+ * Busca as transações de uma conta a partir de uma data inicial (YYYY-MM-DD)
+ * Opcionalmente filtra por billId (fatura de cartão)
+ */
+export async function getPluggyTransactions(apiKey, accountId, fromDate, billId = null) {
   let url = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500`;
   if (fromDate) {
     url += `&from=${fromDate}`;
+  }
+  if (billId) {
+    url += `&billId=${billId}`;
   }
 
   const response = await fetch(url, {

@@ -30,6 +30,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import SyncIcon from '@mui/icons-material/Sync';
 import RestoreIcon from '@mui/icons-material/Restore';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import LayersIcon from '@mui/icons-material/Layers';
 import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
@@ -289,6 +290,18 @@ export default function App() {
     fetch(`/api/transactions/${id}`, { method: 'DELETE' }).catch(() => {});
   };
 
+  // Limpar todas as transações para começar do zero com a Pluggy
+  const handleClearAllTransactions = async () => {
+    if (!window.confirm('Deseja limpar todos os lançamentos para começar do zero com os dados bancários reais da Pluggy? Categorias e contas serão preservadas.')) return;
+    const db = getLocalDb();
+    db.transactions = [];
+    saveLocalDb(db);
+    showToast('Lançamentos limpos! Pronto para sincronizar da Pluggy.');
+    fetchMonths();
+    fetchData(currentMonth);
+    fetch('/api/clear', { method: 'POST' }).catch(() => {});
+  };
+
   // Restaurar dados originais da planilha
   const handleResetSeed = () => {
     if (!window.confirm('Restaurar os dados originais da planilha de Outubro 2026?')) return;
@@ -367,6 +380,17 @@ export default function App() {
 
           {/* Ações no Desktop */}
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteSweepIcon />}
+              onClick={handleClearAllTransactions}
+              sx={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}
+            >
+              Limpar
+            </Button>
+
             <Button
               size="small"
               variant="outlined"

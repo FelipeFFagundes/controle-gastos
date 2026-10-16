@@ -8,6 +8,7 @@ import { getDb, saveDb } from './db.js';
 import { 
   getPluggyApiKey, 
   getPluggyAccounts, 
+  getPluggyBills,
   getPluggyTransactions, 
   mapPluggyCategory 
 } from './pluggy.js';
@@ -309,12 +310,21 @@ app.get(['/api/pluggy/status', '/pluggy/status'], (req, res) => {
   });
 });
 
-// 10. Sincronizar transações via Pluggy (Open Finance)
+// 10. Limpar todos os dados existentes
+app.post(['/api/clear', '/clear'], async (req, res) => {
+  const db = await getDb();
+  db.transactions = [];
+  await saveDb(db);
+  res.json({ success: true, message: 'Todas as transações foram limpas com sucesso.' });
+});
+
+// 11. Sincronizar transações e faturas via Pluggy (Open Finance)
 app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
   try {
     const clientId = req.body.clientId || process.env.PLUGGY_CLIENT_ID;
     const clientSecret = req.body.clientSecret || process.env.PLUGGY_CLIENT_SECRET;
-    const targetMonth = req.body.month || '2026-10';
+    const targetMonth = req.body.month;
+    const clearBeforeSync = Boolean(req.body.clearExisting);
 
     if (!clientId || !clientSecret) {
       return res.status(400).json({ 
@@ -322,10 +332,10 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
       });
     }
 
-    // 1. Obter token
+    // 1. Obter token de acesso
     const apiKey = await getPluggyApiKey(clientId, clientSecret);
 
-    // 2. Obter contas conectadas
+    // 2. Obter contas e cartões conectados
     const accounts = await getPluggyAccounts(apiKey);
     if (!accounts || accounts.length === 0) {
       return res.json({
@@ -336,18 +346,45 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
     }
 
     const db = await getDb();
+    if (clearBeforeSync) {
+      db.transactions = [];
+    }
+
     let importedCount = 0;
+    let billsCount = 0;
 
-    // Calcular data inicial do mês solicitado (ex: 2026-10-01)
-    const fromDate = `${targetMonth}-01`;
+    // Data inicial (se especificado targetMonth, busca desde o início do mês, senão busca últimos 90 dias)
+    let fromDate = null;
+    if (targetMonth) {
+      fromDate = `${targetMonth}-01`;
+    }
 
-    // 3. Para cada conta, buscar transações
+    // 3. Processar cada conta / cartão
     for (const acc of accounts) {
-      const bankName = acc.name || acc.subtype || 'Banco';
+      const bankName = acc.name || acc.marketingName || (acc.type === 'CREDIT' ? 'Cartão de Crédito' : 'Conta Bancária');
+      
+      // Auto-cadastrar a conta no app se ainda não existir
+      let existingAccount = db.accounts.find(a => a.name.toLowerCase() === bankName.toLowerCase());
+      if (!existingAccount) {
+        existingAccount = {
+          id: `acc-pluggy-${acc.id}`,
+          name: bankName,
+          type: acc.type === 'CREDIT' ? 'credit_card' : 'bank_account',
+          color: acc.type === 'CREDIT' ? '#eab308' : '#3b82f6'
+        };
+        db.accounts.push(existingAccount);
+      }
+
+      // Se for cartão de crédito, busca faturas para identificar vencimentos
+      if (acc.type === 'CREDIT') {
+        const bills = await getPluggyBills(apiKey, acc.id);
+        billsCount += bills.length;
+      }
+
+      // Buscar transações
       const pluggyTxs = await getPluggyTransactions(apiKey, acc.id, fromDate);
 
       for (const ptx of pluggyTxs) {
-        // Verificar se já existe no banco
         const alreadyExists = db.transactions.some(t => 
           t.pluggyId === ptx.id || 
           (t.description === ptx.description && t.amount === Math.abs(ptx.amount) && t.date.startsWith(ptx.date.substring(0, 10)))
@@ -360,6 +397,16 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
           const txDate = ptx.date.substring(0, 10);
           const txMonth = txDate.substring(0, 7);
 
+          // Detectar parcelamento na descrição se houver (ex.: 'Loja 01/06' ou '3/10')
+          let installment = null;
+          const installmentMatch = ptx.description?.match(/(\d{1,2})\/(\d{1,2})/);
+          if (installmentMatch) {
+            installment = {
+              current: parseInt(installmentMatch[1], 10),
+              total: parseInt(installmentMatch[2], 10)
+            };
+          }
+
           const newTransaction = {
             id: `tx-pluggy-${ptx.id || Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             pluggyId: ptx.id,
@@ -370,8 +417,8 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
             account: bankName,
             date: txDate,
             month: txMonth,
-            paid: true, // Já aprovada pelo banco
-            installment: null
+            paid: true,
+            installment
           };
 
           db.transactions.push(newTransaction);
@@ -384,8 +431,10 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
 
     res.json({
       success: true,
-      message: `Sincronização concluída com sucesso! ${importedCount} novos lançamentos importados.`,
-      importedCount
+      message: `Sincronização concluída! ${importedCount} lançamentos importados de ${accounts.length} contas/cartões.`,
+      importedCount,
+      accountsCount: accounts.length,
+      billsCount
     });
   } catch (err) {
     console.error('Erro ao sincronizar com Pluggy:', err);
