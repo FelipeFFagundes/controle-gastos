@@ -349,6 +349,77 @@ app.post(['/api/reset-seed', '/reset-seed'], async (req, res) => {
   res.json({ success: true, message: 'Dados restaurados para o padrão de Outubro de 2026.' });
 });
 
+// 8.1 Gerenciamento de Contas e Cartões (Criar, Editar, Excluir)
+app.get(['/api/accounts', '/accounts'], async (req, res) => {
+  const db = await getDb();
+  res.json({ accounts: db.accounts || [] });
+});
+
+app.post(['/api/accounts', '/accounts'], async (req, res) => {
+  const db = await getDb();
+  const { name, type = 'credit_card', color = '#3b82f6' } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Nome da conta/cartão é obrigatório.' });
+  }
+
+  const existing = db.accounts.find(a => a.name.toLowerCase() === name.trim().toLowerCase());
+  if (existing) {
+    return res.status(400).json({ error: 'Já existe uma conta com este nome.' });
+  }
+
+  const newAccount = {
+    id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    name: name.trim(),
+    type,
+    color
+  };
+
+  db.accounts.push(newAccount);
+  await saveDb(db);
+  res.json({ success: true, account: newAccount, accounts: db.accounts });
+});
+
+app.put(['/api/accounts/:id', '/accounts/:id'], async (req, res) => {
+  const db = await getDb();
+  const { id } = req.params;
+  const { name, type, color } = req.body;
+
+  const accIndex = db.accounts.findIndex(a => a.id === id);
+  if (accIndex === -1) {
+    return res.status(404).json({ error: 'Conta não encontrada.' });
+  }
+
+  const oldName = db.accounts[accIndex].name;
+  if (name && name.trim()) {
+    db.accounts[accIndex].name = name.trim();
+    // Atualiza nome da conta nas transações associadas
+    db.transactions.forEach(t => {
+      if (t.account === oldName) {
+        t.account = name.trim();
+      }
+    });
+  }
+  if (type) db.accounts[accIndex].type = type;
+  if (color) db.accounts[accIndex].color = color;
+
+  await saveDb(db);
+  res.json({ success: true, account: db.accounts[accIndex], accounts: db.accounts });
+});
+
+app.delete(['/api/accounts/:id', '/accounts/:id'], async (req, res) => {
+  const db = await getDb();
+  const { id } = req.params;
+
+  const account = db.accounts.find(a => a.id === id);
+  if (!account) {
+    return res.status(404).json({ error: 'Conta não encontrada.' });
+  }
+
+  db.accounts = db.accounts.filter(a => a.id !== id);
+  await saveDb(db);
+  res.json({ success: true, message: `Conta ${account.name} removida.`, accounts: db.accounts });
+});
+
 // 9. Status da integração Pluggy
 app.get(['/api/pluggy/status', '/pluggy/status'], (req, res) => {
   const isConfigured = Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET);

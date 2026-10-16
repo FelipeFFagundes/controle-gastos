@@ -123,5 +123,765 @@
       "color": "#eab308"
     }
   ],
-  "transactions": []
+  "transactions": [
+    {
+      "id": "tx-1792164194288-u4k69k",
+      "description": "Salário",
+      "amount": 4900,
+      "type": "income",
+      "category": "Salário & Entradas",
+      "account": "Conta / PIX",
+      "date": "2026-10-30",
+      "month": "2026-10",
+      "paid": false,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-f3810661-a1df-45bc-a860-56dc5899800a-qw0o6",
+      "pluggyId": "f3810661-a1df-45bc-a860-56dc5899800a",
+      "description": "Rendimentos REND PAGO APLIC AUT MAIS",
+      "amount": 0.12,
+      "type": "income",
+      "category": "Outros",
+      "account": "itau",
+      "date": "2026-10-02",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-2c908e77-b59a-4d56-80e7-1d652b190a20-0svra",
+      "pluggyId": "2c908e77-b59a-4d56-80e7-1d652b190a20",
+      "description": "AMAZON MARKETPLACE12/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-08-28",
+      "month": "2027-08",
+      "paid": true,
+      "installment": {
+        "current": 12,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-17ec19dd-89e4-4f04-afe6-33c1f585fd24-88z1h",
+      "pluggyId": "17ec19dd-89e4-4f04-afe6-33c1f585fd24",
+      "description": "AMAZON MARKETPLACE11/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-07-28",
+      "month": "2027-07",
+      "paid": true,
+      "installment": {
+        "current": 11,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-f162bd62-0274-4ebf-b263-512541fee47a-7cxa2",
+      "pluggyId": "f162bd62-0274-4ebf-b263-512541fee47a",
+      "description": "AMAZON MARKETPLACE10/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-06-27",
+      "month": "2027-06",
+      "paid": true,
+      "installment": {
+        "current": 10,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-20f92fe5-c14d-4c29-9717-8ddf70526b2f-qxpql",
+      "pluggyId": "20f92fe5-c14d-4c29-9717-8ddf70526b2f",
+      "description": "AMAZON MARKETPLACE09/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-05-28",
+      "month": "2027-05",
+      "paid": true,
+      "installment": {
+        "current": 9,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-682f48da-be22-422e-8ce0-77b0b8b9d58b-iq6so",
+      "pluggyId": "682f48da-be22-422e-8ce0-77b0b8b9d58b",
+      "description": "AMAZON MARKETPLACE08/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-04-27",
+      "month": "2027-04",
+      "paid": true,
+      "installment": {
+        "current": 8,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-4b50e53a-d30e-4a13-90cb-1d0f0fb37647-a3hu8",
+      "pluggyId": "4b50e53a-d30e-4a13-90cb-1d0f0fb37647",
+      "description": "AMAZON MARKETPLACE07/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-03-28",
+      "month": "2027-03",
+      "paid": true,
+      "installment": {
+        "current": 7,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-294763c0-83f9-4878-9dca-8fef235833d1-ntvjv",
+      "pluggyId": "294763c0-83f9-4878-9dca-8fef235833d1",
+      "description": "AMAZON MARKETPLACE06/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-02-25",
+      "month": "2027-02",
+      "paid": true,
+      "installment": {
+        "current": 6,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-04d9c5a2-ccf8-41c8-bc8e-10745c5763d4-stwm5",
+      "pluggyId": "04d9c5a2-ccf8-41c8-bc8e-10745c5763d4",
+      "description": "AMAZON MARKETPLACE05/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2027-01-28",
+      "month": "2027-01",
+      "paid": true,
+      "installment": {
+        "current": 5,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-dcc948b9-1589-481a-89cf-b51b648d63be-tgxuq",
+      "pluggyId": "dcc948b9-1589-481a-89cf-b51b648d63be",
+      "description": "AMAZON MARKETPLACE04/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-12-28",
+      "month": "2026-12",
+      "paid": true,
+      "installment": {
+        "current": 4,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-102d01a7-c585-4ac6-b44a-7173be34d0ff-zpucj",
+      "pluggyId": "102d01a7-c585-4ac6-b44a-7173be34d0ff",
+      "description": "NATURA PAY*0061 - 04/04",
+      "amount": 30.59,
+      "type": "expense",
+      "category": "Compras & Vestuário",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-12-28",
+      "month": "2026-12",
+      "paid": true,
+      "installment": {
+        "current": 4,
+        "total": 4
+      }
+    },
+    {
+      "id": "tx-pluggy-6ae2234c-9eca-42be-a77f-924d48b50fac-vwp5u",
+      "pluggyId": "6ae2234c-9eca-42be-a77f-924d48b50fac",
+      "description": "AMAZON MARKETPLACE03/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-11-27",
+      "month": "2026-11",
+      "paid": true,
+      "installment": {
+        "current": 3,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-316f8b43-1e36-47ee-8937-37fc9181a05b-yyura",
+      "pluggyId": "316f8b43-1e36-47ee-8937-37fc9181a05b",
+      "description": "VANS*113739520555b03/03",
+      "amount": 121.46,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-11-27",
+      "month": "2026-11",
+      "paid": true,
+      "installment": {
+        "current": 3,
+        "total": 3
+      }
+    },
+    {
+      "id": "tx-pluggy-03a3e1c1-e427-405d-93e7-88c3f2e4898d-nwkp9",
+      "pluggyId": "03a3e1c1-e427-405d-93e7-88c3f2e4898d",
+      "description": "NATURA PAY*0061 - 03/04",
+      "amount": 30.59,
+      "type": "expense",
+      "category": "Compras & Vestuário",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-11-27",
+      "month": "2026-11",
+      "paid": true,
+      "installment": {
+        "current": 3,
+        "total": 4
+      }
+    },
+    {
+      "id": "tx-pluggy-bd1b505d-81c9-49f7-bb23-bc3e01643757-tw0zd",
+      "pluggyId": "bd1b505d-81c9-49f7-bb23-bc3e01643757",
+      "description": "AMAZON MARKETPLACE02/12",
+      "amount": 181.41,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-28",
+      "month": "2026-10",
+      "paid": true,
+      "installment": {
+        "current": 2,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-8dae96c7-d4c4-4b82-9496-0b7fa6c9baa2-prv3f",
+      "pluggyId": "8dae96c7-d4c4-4b82-9496-0b7fa6c9baa2",
+      "description": "CFC DORNELLESPORTO02/02",
+      "amount": 149.9,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-28",
+      "month": "2026-10",
+      "paid": true,
+      "installment": {
+        "current": 2,
+        "total": 2
+      }
+    },
+    {
+      "id": "tx-pluggy-49185e9e-a005-4f9d-a3c0-7a4dc1da6e4d-48b2j",
+      "pluggyId": "49185e9e-a005-4f9d-a3c0-7a4dc1da6e4d",
+      "description": "NATURA PAY*0061 - 02/04",
+      "amount": 30.59,
+      "type": "expense",
+      "category": "Compras & Vestuário",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-28",
+      "month": "2026-10",
+      "paid": true,
+      "installment": {
+        "current": 2,
+        "total": 4
+      }
+    },
+    {
+      "id": "tx-pluggy-08f01425-c50b-4789-977f-d3bb11ad61c4-3jixj",
+      "pluggyId": "08f01425-c50b-4789-977f-d3bb11ad61c4",
+      "description": "VANS*113739520555b02/03",
+      "amount": 121.46,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-28",
+      "month": "2026-10",
+      "paid": true,
+      "installment": {
+        "current": 2,
+        "total": 3
+      }
+    },
+    {
+      "id": "tx-pluggy-deb8d562-57a2-41ac-a154-09abdd3c3d3e-0070o",
+      "pluggyId": "deb8d562-57a2-41ac-a154-09abdd3c3d3e",
+      "description": "99*SAO PAULOBRA",
+      "amount": 6.8,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-15",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-79d4a241-bb42-4a36-a3bc-275ac06468ce-7i7ds",
+      "pluggyId": "79d4a241-bb42-4a36-a3bc-275ac06468ce",
+      "description": "CLINICA FORTIUSPORTO ALEGREBRA",
+      "amount": 150,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-14",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-db4de48d-f785-4fe2-88e3-821583467ada-rcn69",
+      "pluggyId": "db4de48d-f785-4fe2-88e3-821583467ada",
+      "description": "POP 14Out 08h47minSAO PAULOBRA",
+      "amount": 6.21,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-14",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-7ee620fe-88f2-4f3f-be4d-afde53d290c3-p0roq",
+      "pluggyId": "7ee620fe-88f2-4f3f-be4d-afde53d290c3",
+      "description": "NETFLIX.COMSAO PAULOBRA",
+      "amount": 44.9,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-12",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-546a8b97-f623-402a-9a58-9763ad784ea0-3quis",
+      "pluggyId": "546a8b97-f623-402a-9a58-9763ad784ea0",
+      "description": "POP 11Out 18h04minSAO PAULOBRA",
+      "amount": 9.9,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-12",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-3b9abd4f-c8a3-4f4e-9367-42341a4b055f-d90g1",
+      "pluggyId": "3b9abd4f-c8a3-4f4e-9367-42341a4b055f",
+      "description": "PANVEL FILIAL 483PORTO ALEGREBRA",
+      "amount": 22.98,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-10",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-c2e36edd-0623-47ff-9c3c-e8bdd8afdc64-qu1wi",
+      "pluggyId": "c2e36edd-0623-47ff-9c3c-e8bdd8afdc64",
+      "description": "OSSALAPORTO ALEGREBRA",
+      "amount": 234.24,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-10",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-7a8eef32-e8d4-43ca-8399-bdc0b9339220-6l229",
+      "pluggyId": "7a8eef32-e8d4-43ca-8399-bdc0b9339220",
+      "description": "Z F GOMES E CIA LTDAPORTO ALEGREBRA",
+      "amount": 97.3,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-08",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-cc737b61-434a-4c23-a01b-65c194ee0249-p41xb",
+      "pluggyId": "cc737b61-434a-4c23-a01b-65c194ee0249",
+      "description": "MP *MELIMAISOsascoBRA",
+      "amount": 9.9,
+      "type": "expense",
+      "category": "Compras & Vestuário",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-08",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-844d6a93-5c8e-4128-9e6f-870745aa447c-4rlt6",
+      "pluggyId": "844d6a93-5c8e-4128-9e6f-870745aa447c",
+      "description": "POP 08Out 10h57minSAO PAULOBRA",
+      "amount": 10,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-08",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-12cafd19-23db-4794-bc6f-f59c7c4763ce-q8opi",
+      "pluggyId": "12cafd19-23db-4794-bc6f-f59c7c4763ce",
+      "description": "MERCADOLIVRE*MERCADOLOsascoBRA",
+      "amount": 51.42,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-08",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-2d8d813f-7957-41f2-828d-fc87ebd8c384-6ql1q",
+      "pluggyId": "2d8d813f-7957-41f2-828d-fc87ebd8c384",
+      "description": "POP 07Out 15h49minSAO PAULOBRA",
+      "amount": 11.7,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-07",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-4db30b64-f94e-4f51-bdb3-a9f60fc9929e-0z6fq",
+      "pluggyId": "4db30b64-f94e-4f51-bdb3-a9f60fc9929e",
+      "description": "EBN*SPOTIFYCURITIBABRA",
+      "amount": 23.9,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-06",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-7274bf76-52ca-47dc-b4ac-7c41e14981ab-7txxj",
+      "pluggyId": "7274bf76-52ca-47dc-b4ac-7c41e14981ab",
+      "description": "DL*UberRidesSAO PAULOBRA",
+      "amount": 9.94,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-03",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-f12e3bda-7717-4b79-9742-88f1e98383ad-wz4un",
+      "pluggyId": "f12e3bda-7717-4b79-9742-88f1e98383ad",
+      "description": "BISTEK SUPERMERCADOSPORTO ALEGREBRA",
+      "amount": 37.93,
+      "type": "expense",
+      "category": "Outros",
+      "account": "LATAM PASS ITAU MASTERCARD PLATINUM",
+      "date": "2026-10-03",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-6930a79a-7f65-45f9-bb8b-0668f1e01ec4-dfonb",
+      "pluggyId": "6930a79a-7f65-45f9-bb8b-0668f1e01ec4",
+      "description": "Transferência enviada pelo Pix|Rafaelly Bottega Pazzin",
+      "amount": 390,
+      "type": "expense",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-15",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-c8594e8c-02e1-475a-bc2d-bbceef243ef8-36js6",
+      "pluggyId": "c8594e8c-02e1-475a-bc2d-bbceef243ef8",
+      "description": "Transferência enviada pelo Pix|Caio Morais Saucedo",
+      "amount": 35,
+      "type": "expense",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-15",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-bb805bb6-6a5d-4b68-8982-c67e9f829882-d24kx",
+      "pluggyId": "bb805bb6-6a5d-4b68-8982-c67e9f829882",
+      "description": "Transferência enviada pelo Pix|GROWTH SUPPLEMENTS - PRODUTOS ALIMENTICIOS LTDA",
+      "amount": 195.91,
+      "type": "expense",
+      "category": "Alimentação",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-14",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-a28a0ac9-b2d1-46cf-8ef9-af834aa18c46-v1s9m",
+      "pluggyId": "a28a0ac9-b2d1-46cf-8ef9-af834aa18c46",
+      "description": "Transferência Recebida|WILLIAM FERNANDES CARDOSO ROSA",
+      "amount": 200,
+      "type": "income",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-09",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-2f92a187-c3c1-4b0e-b000-31b020398493-a7wrq",
+      "pluggyId": "2f92a187-c3c1-4b0e-b000-31b020398493",
+      "description": "Transferência enviada pelo Pix|Catarina Viademonte da Rosa Jung",
+      "amount": 30,
+      "type": "expense",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-09",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-50e3e6ff-cd2a-487d-b784-23b507b8e827-sb2xa",
+      "pluggyId": "50e3e6ff-cd2a-487d-b784-23b507b8e827",
+      "description": "Transferência enviada|FREDERICO DA COSTA VIEIRA",
+      "amount": 63.62,
+      "type": "expense",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-08",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-e10c3359-fa27-408f-b618-24194f726dee-dsw9w",
+      "pluggyId": "e10c3359-fa27-408f-b618-24194f726dee",
+      "description": "Transferência Recebida|Murilo Fonseca Fagundes",
+      "amount": 52,
+      "type": "income",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-07",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-000175e6-9fa5-4795-b452-5c013b48f55c-woukh",
+      "pluggyId": "000175e6-9fa5-4795-b452-5c013b48f55c",
+      "description": "Transferência Recebida|Gabriel Carneiro Goularte",
+      "amount": 93,
+      "type": "income",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-03",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-ccb687d7-67ec-4b61-86f3-145651d01ed3-cp2lh",
+      "pluggyId": "ccb687d7-67ec-4b61-86f3-145651d01ed3",
+      "description": "Transferência enviada pelo Pix|Geraldo Dayrell Neto",
+      "amount": 50,
+      "type": "expense",
+      "category": "Outros",
+      "account": "Nu Pagamentos S.A. - Instituição de Pagamento",
+      "date": "2026-10-02",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-cacbf1e0-5912-4499-8b5d-75f7b3a06bd2-9svb6",
+      "pluggyId": "cacbf1e0-5912-4499-8b5d-75f7b3a06bd2",
+      "description": "BIKE GARDEN MECHANIC 12/12",
+      "amount": 999.16,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2027-02-25",
+      "month": "2027-02",
+      "paid": true,
+      "installment": {
+        "current": 12,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-4dd509a6-0d79-46af-9628-5015cb43581b-oeesx",
+      "pluggyId": "4dd509a6-0d79-46af-9628-5015cb43581b",
+      "description": "BIKE GARDEN MECHANIC 11/12",
+      "amount": 999.16,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2027-01-25",
+      "month": "2027-01",
+      "paid": true,
+      "installment": {
+        "current": 11,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-ec97b1b8-1029-4962-853a-843cf3b32c84-qx2nz",
+      "pluggyId": "ec97b1b8-1029-4962-853a-843cf3b32c84",
+      "description": "BIKE GARDEN MECHANIC 10/12",
+      "amount": 999.16,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2026-12-25",
+      "month": "2026-12",
+      "paid": true,
+      "installment": {
+        "current": 10,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-02e8679b-2f0d-4740-b739-658ef5315ef6-v46lr",
+      "pluggyId": "02e8679b-2f0d-4740-b739-658ef5315ef6",
+      "description": "BIKE GARDEN MECHANIC 9/12",
+      "amount": 999.16,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2026-11-25",
+      "month": "2026-11",
+      "paid": true,
+      "installment": {
+        "current": 9,
+        "total": 12
+      }
+    },
+    {
+      "id": "tx-pluggy-789470cd-c7ef-42e6-bb11-7358f53cd306-m9qg4",
+      "pluggyId": "789470cd-c7ef-42e6-bb11-7358f53cd306",
+      "description": "Mercado*Mercadolivre 6/6",
+      "amount": 35.84,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2026-11-20",
+      "month": "2026-11",
+      "paid": true,
+      "installment": {
+        "current": 6,
+        "total": 6
+      }
+    },
+    {
+      "id": "tx-pluggy-d5157481-aaed-4c58-9542-d16df473bd40-zdggs",
+      "pluggyId": "d5157481-aaed-4c58-9542-d16df473bd40",
+      "description": "Executivopremium 4/4",
+      "amount": 447.95,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2026-11-08",
+      "month": "2026-11",
+      "paid": true,
+      "installment": {
+        "current": 4,
+        "total": 4
+      }
+    },
+    {
+      "id": "tx-pluggy-14316f84-e651-4dcb-ac22-6b35bff76010-6ryhv",
+      "pluggyId": "14316f84-e651-4dcb-ac22-6b35bff76010",
+      "description": "Google Youtubepremium",
+      "amount": 26.9,
+      "type": "expense",
+      "category": "Outros",
+      "account": "platinum",
+      "date": "2026-10-12",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-698caeef-f105-4b88-8aec-397915aef2d0-qlcmo",
+      "pluggyId": "698caeef-f105-4b88-8aec-397915aef2d0",
+      "description": "Pix enviado FELIPE FONSECA FAGUNDES",
+      "amount": 2408.89,
+      "type": "expense",
+      "category": "Outros",
+      "account": "itau",
+      "date": "2026-10-15",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-pluggy-10fe02a8-6478-449e-9c0b-1228f272a964-htono",
+      "pluggyId": "10fe02a8-6478-449e-9c0b-1228f272a964",
+      "description": "Resgate RES APLIC AUT MAIS",
+      "amount": 78.9,
+      "type": "income",
+      "category": "Investimento & Reserva",
+      "account": "itau",
+      "date": "2026-10-01",
+      "month": "2026-10",
+      "paid": true,
+      "installment": null
+    },
+    {
+      "id": "tx-1792164391007-65wj47",
+      "description": "mãe",
+      "amount": 953,
+      "type": "income",
+      "category": "Salário & Entradas",
+      "account": "Conta / PIX",
+      "date": "2026-10-30",
+      "month": "2026-10",
+      "paid": false,
+      "installment": null
+    }
+  ],
+  "customSurplus": {
+    "2026-10": 1000
+  }
 }

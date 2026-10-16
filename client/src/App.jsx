@@ -42,6 +42,7 @@ import { TransactionModal } from './components/TransactionModal';
 import { InstallmentsTracker } from './components/InstallmentsTracker';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { PluggySyncModal } from './components/PluggySyncModal';
+import { AccountManagementModal } from './components/AccountManagementModal';
 import { getLocalDb, saveLocalDb, computeMonthData, computeInstallments } from './storage';
 import { defaultInitialData } from './initialData';
 
@@ -65,6 +66,7 @@ export default function App() {
   // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPluggyModalOpen, setIsPluggyModalOpen] = useState(false);
+  const [isAccountsModalOpen, setIsAccountsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
   // Snackbar / Feedback
@@ -131,6 +133,14 @@ export default function App() {
           }
           if (jsonData.categories) {
             db.categories = jsonData.categories;
+          }
+          if (jsonData.customSurplusTarget !== undefined) {
+            if (!db.customSurplus) db.customSurplus = {};
+            if (jsonData.customSurplusTarget !== null) {
+              db.customSurplus[targetMonth] = jsonData.customSurplusTarget;
+            } else {
+              delete db.customSurplus[targetMonth];
+            }
           }
           saveLocalDb(db);
         }
@@ -332,6 +342,62 @@ export default function App() {
     }).catch(() => {});
   };
 
+  // Salvar conta/cartão (novo ou editado)
+  const handleSaveAccount = async (accData) => {
+    const db = getLocalDb();
+    if (!db.accounts) db.accounts = [];
+
+    if (accData.id) {
+      // Edição
+      const idx = db.accounts.findIndex(a => a.id === accData.id);
+      if (idx !== -1) {
+        const oldName = db.accounts[idx].name;
+        db.accounts[idx] = { ...db.accounts[idx], ...accData };
+        // Atualiza transações que usavam o nome anterior
+        if (oldName !== accData.name) {
+          db.transactions.forEach(t => {
+            if (t.account === oldName) t.account = accData.name;
+          });
+        }
+        showToast(`Cartão/Conta "${accData.name}" atualizado!`);
+      }
+      fetch(`/api/accounts/${accData.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accData)
+      }).catch(() => {});
+    } else {
+      // Criação
+      const newAcc = {
+        id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        name: accData.name,
+        type: accData.type || 'credit_card',
+        color: accData.color || '#3b82f6'
+      };
+      db.accounts.push(newAcc);
+      showToast(`Cartão/Conta "${accData.name}" adicionado!`);
+      fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAcc)
+      }).catch(() => {});
+    }
+
+    saveLocalDb(db);
+    fetchData(currentMonth);
+  };
+
+  // Excluir conta/cartão
+  const handleDeleteAccount = async (id, name) => {
+    if (!window.confirm(`Tem certeza que deseja remover o cartão/conta "${name}"?`)) return;
+    const db = getLocalDb();
+    db.accounts = (db.accounts || []).filter(a => a.id !== id);
+    saveLocalDb(db);
+    showToast(`Conta/Cartão "${name}" removido.`);
+    fetchData(currentMonth);
+    fetch(`/api/accounts/${id}`, { method: 'DELETE' }).catch(() => {});
+  };
+
   // Restaurar dados originais da planilha
   const handleResetSeed = () => {
     if (!window.confirm('Restaurar os dados originais da planilha de Outubro 2026?')) return;
@@ -502,6 +568,7 @@ export default function App() {
               selectedAccountFilter={selectedAccountFilter}
               onSelectAccountFilter={setSelectedAccountFilter}
               onUpdateCustomSurplus={handleUpdateCustomSurplus}
+              onOpenManageAccounts={() => setIsAccountsModalOpen(true)}
             />
 
             {/* Listagem de Transações e Barra Lateral */}
@@ -656,6 +723,14 @@ export default function App() {
             fetchData(currentMonth);
           });
         }}
+      />
+
+      <AccountManagementModal
+        isOpen={isAccountsModalOpen}
+        onClose={() => setIsAccountsModalOpen(false)}
+        accounts={data.accounts || []}
+        onSaveAccount={handleSaveAccount}
+        onDeleteAccount={handleDeleteAccount}
       />
     </ThemeProvider>
   );

@@ -30,7 +30,8 @@ export function SummaryCards({
   accounts = [], 
   selectedAccountFilter = '', 
   onSelectAccountFilter,
-  onUpdateCustomSurplus
+  onUpdateCustomSurplus,
+  onOpenManageAccounts
 }) {
   if (!summary) return null;
 
@@ -98,12 +99,16 @@ export function SummaryCards({
               </Typography>
             </Box>
             <Typography variant="h4" sx={{ fontWeight: 800, color: isOverBudget ? 'error.main' : 'secondary.main', fontSize: { xs: '1.8rem', sm: '2.3rem' } }}>
-              {isOverBudget ? `- ${formatBRL(Math.abs(netBalance))}` : formatBRL(availableToSpend)}
+              {isOverBudget ? `- ${formatBRL(Math.abs(availableToSpend))}` : formatBRL(availableToSpend)}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {isOverBudget
-                ? 'Suas despesas superaram sua renda prevista para o fim do mês!'
-                : `Você ainda pode gastar até ${formatBRL(availableToSpend)} e conseguir pagar 100% das suas faturas com seu salário.`}
+                ? customSurplusTarget !== null
+                  ? `Seus gastos superaram o teto para garantir a meta de sobra de ${formatBRL(customSurplusTarget)}!`
+                  : 'Suas despesas superaram sua renda prevista para o fim do mês!'
+                : customSurplusTarget !== null
+                  ? `Você ainda pode gastar até ${formatBRL(availableToSpend)} no cartão para que sobre exatamente ${formatBRL(customSurplusTarget)} no fim do mês.`
+                  : `Você ainda pode gastar até ${formatBRL(availableToSpend)} e conseguir pagar 100% das suas faturas com seu salário.`}
             </Typography>
           </Box>
 
@@ -349,11 +354,25 @@ export function SummaryCards({
               Gastos por Conta / Cartão
             </Typography>
           </Box>
-          {selectedAccountFilter && (
-            <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem', p: 0.25 }}>
-              Limpar filtro
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {selectedAccountFilter && (
+              <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem', p: 0.25 }}>
+                Limpar filtro
+              </Button>
+            )}
+            {onOpenManageAccounts && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                onClick={onOpenManageAccounts}
+                startIcon={<EditIcon sx={{ fontSize: 13 }} />}
+                sx={{ fontSize: '0.75rem', py: 0.25, px: 1, borderColor: 'divider' }}
+              >
+                Editar Cartões
+              </Button>
+            )}
+          </Box>
         </Box>
 
         <Box
