@@ -26,7 +26,6 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
-import ViewAgendaIcon from '@mui/icons-material/ViewAgenda';
 
 // Helpers de data
 function addMonths(monthStr, count) {
@@ -67,7 +66,6 @@ export function InstallmentsTracker({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('ALL');
   const [expandedKeys, setExpandedKeys] = useState({});
-  const [groupByAccount, setGroupByAccount] = useState(true);
 
   const formatBRL = (val) => {
     return Number(val || 0).toLocaleString('pt-BR', {
@@ -168,16 +166,42 @@ export function InstallmentsTracker({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* BARRA DE FILTROS & BUSCA */}
-      <Card sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-          {/* Campo de Busca */}
+      {/* BARRA DE FILTROS & BUSCA INTEGRADA E HARMÔNICA */}
+      <Card
+        sx={{
+          p: { xs: 2, sm: 2.25 },
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          boxShadow: 'none'
+        }}
+      >
+        {/* Linha de Busca: Centralizada ou proporcional */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 2,
+            width: '100%'
+          }}
+        >
+          {/* Campo de Busca centralizado */}
           <TextField
             size="small"
-            placeholder="Buscar compra parcelada..."
+            placeholder="Buscar compras parceladas..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{ minWidth: { xs: '100%', sm: 280 } }}
+            sx={{
+              width: '100%',
+              maxWidth: 480,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2.5,
+                bgcolor: 'rgba(255, 255, 255, 0.03)'
+              }
+            }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -186,7 +210,7 @@ export function InstallmentsTracker({
               ),
               endAdornment: searchTerm && (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchTerm('')}>
+                  <IconButton size="small" onClick={() => setSearchTerm('')} edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -194,93 +218,130 @@ export function InstallmentsTracker({
             }}
           />
 
-          {/* Botão de Agrupamento */}
-          <Button
-            size="small"
-            variant={groupByAccount ? 'contained' : 'outlined'}
-            color="inherit"
-            startIcon={<ViewAgendaIcon fontSize="small" />}
-            onClick={() => setGroupByAccount(!groupByAccount)}
-            sx={{ alignSelf: { xs: 'flex-start', sm: 'center' }, fontSize: '0.8rem', textTransform: 'none' }}
+          {/* Chips de Cartões / Contas Centralizados */}
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              width: '100%',
+              py: 0.5
+            }}
           >
-            {groupByAccount ? 'Agrupado por Cartão' : 'Lista Corrida'}
-          </Button>
+            <Chip
+              label={`Todos (${installments.length})`}
+              size="small"
+              clickable
+              color={selectedAccount === 'ALL' ? 'primary' : 'default'}
+              variant={selectedAccount === 'ALL' ? 'filled' : 'outlined'}
+              onClick={() => setSelectedAccount('ALL')}
+              sx={{
+                fontWeight: 600,
+                borderRadius: 2,
+                px: 0.5,
+                transition: 'all 0.2s ease'
+              }}
+            />
+            {accountOptions.map(accName => {
+              const count = installments.filter(i => i.account === accName).length;
+              const isSelected = selectedAccount === accName;
+              const accColor = accountColorMap[accName] || '#3b82f6';
+              return (
+                <Chip
+                  key={accName}
+                  label={`${accName} (${count})`}
+                  size="small"
+                  clickable
+                  variant={isSelected ? 'filled' : 'outlined'}
+                  onClick={() => setSelectedAccount(isSelected ? 'ALL' : accName)}
+                  icon={
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        bgcolor: isSelected ? '#fff' : accColor,
+                        ml: 0.75
+                      }}
+                    />
+                  }
+                  sx={{
+                    fontWeight: 600,
+                    borderRadius: 2,
+                    px: 0.5,
+                    borderColor: isSelected ? accColor : 'divider',
+                    bgcolor: isSelected ? accColor : 'transparent',
+                    color: isSelected ? '#fff' : 'text.primary',
+                    '&:hover': {
+                      bgcolor: isSelected ? accColor : 'rgba(255, 255, 255, 0.05)'
+                    },
+                    transition: 'all 0.2s ease'
+                  }}
+                />
+              );
+            })}
+          </Box>
         </Box>
 
-        {/* Filtro por Cartão / Conta em Chips */}
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2, alignItems: 'center' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ mr: 0.5, textTransform: 'uppercase' }}>
-            Filtrar:
-          </Typography>
-          <Chip
-            label={`Todos (${installments.length})`}
-            size="small"
-            clickable
-            color={selectedAccount === 'ALL' ? 'primary' : 'default'}
-            variant={selectedAccount === 'ALL' ? 'filled' : 'outlined'}
-            onClick={() => setSelectedAccount('ALL')}
-            sx={{ fontWeight: 600 }}
-          />
-          {accountOptions.map(accName => {
-            const count = installments.filter(i => i.account === accName).length;
-            const isSelected = selectedAccount === accName;
-            const accColor = accountColorMap[accName] || '#3b82f6';
-            return (
-              <Chip
-                key={accName}
-                label={`${accName} (${count})`}
-                size="small"
-                clickable
-                variant={isSelected ? 'filled' : 'outlined'}
-                onClick={() => setSelectedAccount(isSelected ? 'ALL' : accName)}
-                icon={
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: accColor, ml: 1 }} />
-                }
-                sx={{
-                  fontWeight: 600,
-                  borderColor: isSelected ? accColor : undefined,
-                  bgcolor: isSelected ? accColor : undefined,
-                  color: isSelected ? '#fff' : undefined
-                }}
-              />
-            );
-          })}
-        </Box>
+        {/* Barra de Totais Filtrados com estilo de pílula integrada centralizada */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: { xs: 2, sm: 4 },
+            pt: 1.5,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'rgba(255, 255, 255, 0.015)',
+            borderRadius: 1.5,
+            px: 2,
+            py: 1
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'warning.main' }} />
+            <Typography variant="caption" color="text.secondary">
+              Neste mês:{' '}
+              <Typography component="span" variant="caption" fontWeight={700} color="warning.main">
+                {formatBRL(totalMonthlyCommitment)}
+              </Typography>
+            </Typography>
+          </Box>
 
-        <Divider sx={{ my: 1.5 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'info.main' }} />
+            <Typography variant="caption" color="text.secondary">
+              Saldo futuro:{' '}
+              <Typography component="span" variant="caption" fontWeight={700} color="info.light">
+                {formatBRL(totalFutureDebt)}
+              </Typography>
+            </Typography>
+          </Box>
 
-        {/* Resumo Consolidado Compacto (sem poluição visual) */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
-          <Typography variant="caption" color="text.secondary">
-            Compromisso no mês:{' '}
-            <Typography component="span" variant="caption" fontWeight={700} color="warning.main">
-              {formatBRL(totalMonthlyCommitment)}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              Total a quitar:{' '}
+              <Typography component="span" variant="caption" fontWeight={700} color="text.primary">
+                {formatBRL(totalInstallmentsDebt)}
+              </Typography>
             </Typography>
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Saldo devedor futuro:{' '}
-            <Typography component="span" variant="caption" fontWeight={700} color="info.light">
-              {formatBRL(totalFutureDebt)}
-            </Typography>
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Total a quitar (atual + futuro):{' '}
-            <Typography component="span" variant="caption" fontWeight={700} color="text.primary">
-              {formatBRL(totalInstallmentsDebt)}
-            </Typography>
-          </Typography>
+          </Box>
         </Box>
       </Card>
 
-      {/* 3. LISTAGEM PRINCIPAL DAS PARCELAS */}
+      {/* 3. LISTAGEM PRINCIPAL DAS PARCELAS (SEMPRE AGRUPADA POR CARTÃO) */}
       {filteredInstallments.length === 0 ? (
-        <Card sx={{ p: 4, textAlign: 'center' }}>
+        <Card sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
           <Typography variant="body2" color="text.secondary">
             Nenhuma compra parcelada encontrada com os filtros atuais.
           </Typography>
         </Card>
-      ) : groupByAccount ? (
-        // VISÃO AGRUPADA POR CARTÃO / CONTA
+      ) : (
         groupedInstallments.map(group => (
           <Card key={group.accountName} sx={{ overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
             {/* Cabeçalho do Cartão */}
@@ -343,26 +404,6 @@ export function InstallmentsTracker({
             </Stack>
           </Card>
         ))
-      ) : (
-        // VISÃO EM LISTA CORRIDA
-        <Card sx={{ overflow: 'hidden' }}>
-          <Stack divider={<Divider />}>
-            {filteredInstallments.map((item, idx) => (
-              <InstallmentRowItem
-                key={item.key || `${item.description}-${idx}`}
-                item={item}
-                currentMonth={currentMonth}
-                isExpanded={Boolean(expandedKeys[item.key || `${item.description}-${idx}`])}
-                onToggleExpand={() => toggleExpand(item.key || `${item.description}-${idx}`)}
-                formatBRL={formatBRL}
-                isMobile={isMobile}
-                isTablet={isTablet}
-                showAccountBadge
-                accountColor={accountColorMap[item.account]}
-              />
-            ))}
-          </Stack>
-        </Card>
       )}
     </Box>
   );
