@@ -117,12 +117,12 @@ export async function getPluggyBills(apiKey, accountId) {
 
 /**
  * Busca as transações de uma conta a partir de uma data inicial (YYYY-MM-DD)
- * Suporta endpoint oficial /v2/transactions e trata contas inativas/encerradas (410 Gone)
+ * Na API v2 da Pluggy os parâmetros são: accountId, dateFrom, dateTo, billId
  */
 export async function getPluggyTransactions(apiKey, accountId, fromDate, billId = null) {
-  let url = `${PLUGGY_API_URL}/v2/transactions?accountId=${accountId}&pageSize=500`;
+  let url = `${PLUGGY_API_URL}/v2/transactions?accountId=${accountId}`;
   if (fromDate) {
-    url += `&from=${fromDate}`;
+    url += `&dateFrom=${fromDate}`;
   }
   if (billId) {
     url += `&billId=${billId}`;
@@ -135,22 +135,9 @@ export async function getPluggyTransactions(apiKey, accountId, fromDate, billId 
     }
   });
 
-  // Fallback para endpoint v1 caso /v2 não esteja habilitado
-  if (response.status === 404) {
-    let legacyUrl = `${PLUGGY_API_URL}/transactions?accountId=${accountId}&pageSize=500`;
-    if (fromDate) legacyUrl += `&from=${fromDate}`;
-    if (billId) legacyUrl += `&billId=${billId}`;
-    response = await fetch(legacyUrl, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': apiKey
-      }
-    });
-  }
-
   // Se a conta retornou 410 Gone ou 404, significa que essa subconta/cartão específico foi desconectado ou não mantém mais histórico na Pluggy
   if (response.status === 410 || response.status === 404) {
-    console.warn(`Conta ${accountId} retornou ${response.status} (${response.statusText}). Ignorando e continuando com as demais contas ativas.`);
+    console.warn(`Conta ${accountId} retornou ${response.status} (${response.statusText}). Ignorando.`);
     return [];
   }
 
@@ -161,7 +148,9 @@ export async function getPluggyTransactions(apiKey, accountId, fromDate, billId 
   }
 
   const data = await response.json();
-  return data.results || [];
+  const txs = data.results || [];
+  console.log(`Sucesso: ${txs.length} transações encontradas para conta ${accountId}`);
+  return txs;
 }
 
 /**

@@ -116,6 +116,7 @@ app.get(['/api/data', '/data'], async (req, res) => {
     accounts: db.accounts,
     customSurplusTarget,
     transactions: monthTransactions,
+    allTransactions: db.transactions,
     summary: {
       totalIncome,
       totalExpense,

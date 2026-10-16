@@ -122,8 +122,16 @@ export default function App() {
         if (jsonData.transactions) {
           setData(jsonData);
           setInstallments(jsonInst.installments || []);
-          // Atualiza o banco local com os dados mais recentes do servidor
-          db.transactions = jsonData.transactions;
+          // Atualiza o banco local com todos os dados mais recentes do servidor
+          if (jsonData.allTransactions) {
+            db.transactions = jsonData.allTransactions;
+          }
+          if (jsonData.accounts) {
+            db.accounts = jsonData.accounts;
+          }
+          if (jsonData.categories) {
+            db.categories = jsonData.categories;
+          }
           saveLocalDb(db);
         }
       }
@@ -641,10 +649,12 @@ export default function App() {
         isOpen={isPluggyModalOpen}
         onClose={() => setIsPluggyModalOpen(false)}
         currentMonth={currentMonth}
-        onSyncSuccess={() => {
-          showToast('Bancos sincronizados com sucesso!');
-          fetchMonths();
-          fetchData(currentMonth);
+        onSyncSuccess={(syncResult) => {
+          const msg = syncResult?.message || 'Bancos sincronizados com sucesso!';
+          showToast(msg);
+          fetchMonths().then(() => {
+            fetchData(currentMonth);
+          });
         }}
       />
     </ThemeProvider>
