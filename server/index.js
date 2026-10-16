@@ -9,6 +9,7 @@ import {
   getPluggyApiKey, 
   createPluggyConnectToken,
   getPluggyItems,
+  triggerPluggyItemSync,
   getPluggyAccountsByItem,
   getPluggyBills,
   getPluggyTransactions, 
@@ -158,42 +159,65 @@ app.get(['/api/installments', '/installments'], async (req, res) => {
   const currentMonth = req.query.month || '2026-10';
 
   const installmentsMap = new Map();
+  const normalizeDesc = (desc = '') =>
+    String(desc).replace(/\s*-?\s*\d{1,2}\s*\/\s*\d{1,2}\s*$/, '').trim() || String(desc).trim();
 
   db.transactions.forEach(t => {
+    if (t.type === 'income') return;
     if (t.installment && t.installment.total > 1) {
-      const key = `${t.description}__${t.account}`;
+      const baseDesc = normalizeDesc(t.description);
+      // Agrupa todas as parcelas da MESMA compra (descrição base + conta + nº total de parcelas)
+      const key = `${baseDesc.toLowerCase()}__${t.account}__${t.installment.total}`;
       if (!installmentsMap.has(key)) {
         installmentsMap.set(key, {
-          description: t.description,
+          key,
+          description: baseDesc,
           account: t.account,
           category: t.category,
-          amountPerInstallment: t.amount,
-          totalAmount: t.amount * t.installment.total,
           totalInstallments: t.installment.total,
-          currentInMonth: t.month === currentMonth ? t.installment.current : null,
           history: []
         });
       }
-      installmentsMap.get(key).history.push({
-        id: t.id,
-        month: t.month,
-        current: t.installment.current,
-        paid: t.paid,
-        amount: t.amount
-      });
+      const group = installmentsMap.get(key);
+      if (!group.history.some(h => h.current === t.installment.current)) {
+        group.history.push({
+          id: t.id,
+          month: t.month,
+          current: t.installment.current,
+          paid: t.paid,
+          amount: Number(t.amount) || 0
+        });
+      }
     }
   });
 
-  const installmentsList = Array.from(installmentsMap.values()).map(inst => {
-    inst.history.sort((a, b) => a.current - b.current);
-    const match = inst.history.find(h => h.month === currentMonth);
-    const activeCurrent = match ? match.current : (inst.history[inst.history.length - 1]?.current || 1);
-    return {
-      ...inst,
-      currentInstallment: activeCurrent,
-      isCompleted: activeCurrent >= inst.totalInstallments
-    };
-  });
+  const installmentsList = Array.from(installmentsMap.values())
+    .map(inst => {
+      inst.history.sort((a, b) => a.current - b.current);
+      const match = inst.history.find(h => h.month === currentMonth);
+      const past = inst.history.filter(h => h.month < currentMonth);
+      const currentInstallment = match
+        ? match.current
+        : (past.length ? Math.max(...past.map(h => h.current)) : 0);
+      const amountPerInstallment = match
+        ? match.amount
+        : (inst.history[inst.history.length - 1]?.amount || 0);
+      const remainingInstallments = Math.max(0, inst.totalInstallments - currentInstallment);
+      return {
+        ...inst,
+        amountPerInstallment,
+        amountThisMonth: match ? match.amount : 0,
+        totalAmount: amountPerInstallment * inst.totalInstallments,
+        currentInstallment,
+        currentInMonth: match ? match.current : null,
+        remainingInstallments,
+        remainingDebt: remainingInstallments * amountPerInstallment,
+        isCompleted: currentInstallment >= inst.totalInstallments && !match
+      };
+    })
+    // Mostra apenas compras com parcela neste mês ou ainda por vir
+    .filter(inst => !inst.isCompleted)
+    .sort((a, b) => b.amountThisMonth - a.amountThisMonth);
 
   res.json({ installments: installmentsList });
 });
@@ -220,7 +244,7 @@ app.post(['/api/transactions', '/transactions'], async (req, res) => {
   }
 
   const baseDate = new Date(date);
-  const baseMonth = date.substring(0, 7);
+  const baseMonth = req.body.month || date.substring(0, 7);
   const numAmount = Number(amount);
   const createdTransactions = [];
 
@@ -290,10 +314,10 @@ app.put(['/api/transactions/:id', '/transactions/:id'], async (req, res) => {
   }
 
   const existing = db.transactions[index];
-  const { description, amount, type, category, account, date, paid, installment } = req.body;
+  const { description, amount, type, category, account, date, paid, installment, month } = req.body;
 
   const updatedDate = date || existing.date;
-  const updatedMonth = updatedDate.substring(0, 7);
+  const updatedMonth = month !== undefined ? month : (existing.month || updatedDate.substring(0, 7));
 
   db.transactions[index] = {
     ...existing,
@@ -357,7 +381,7 @@ app.get(['/api/accounts', '/accounts'], async (req, res) => {
 
 app.post(['/api/accounts', '/accounts'], async (req, res) => {
   const db = await getDb();
-  const { name, type = 'credit_card', color = '#3b82f6' } = req.body;
+  const { name, type = 'credit_card', color = '#3b82f6', closingDay, billingCycle, monthOffset } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Nome da conta/cartão é obrigatório.' });
   }
@@ -371,7 +395,10 @@ app.post(['/api/accounts', '/accounts'], async (req, res) => {
     id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
     name: name.trim(),
     type,
-    color
+    color,
+    closingDay: type === 'credit_card' && closingDay ? Number(closingDay) : null,
+    billingCycle: billingCycle || 'same_month',
+    monthOffset: monthOffset !== undefined ? Number(monthOffset) : 0
   };
 
   db.accounts.push(newAccount);
@@ -382,7 +409,7 @@ app.post(['/api/accounts', '/accounts'], async (req, res) => {
 app.put(['/api/accounts/:id', '/accounts/:id'], async (req, res) => {
   const db = await getDb();
   const { id } = req.params;
-  const { name, type, color } = req.body;
+  const { name, type, color, billingCycle, monthOffset, closingDay } = req.body;
 
   const accIndex = db.accounts.findIndex(a => a.id === id);
   if (accIndex === -1) {
@@ -390,6 +417,11 @@ app.put(['/api/accounts/:id', '/accounts/:id'], async (req, res) => {
   }
 
   const oldName = db.accounts[accIndex].name;
+  const oldOffset = db.accounts[accIndex].monthOffset !== undefined 
+    ? db.accounts[accIndex].monthOffset 
+    : (db.accounts[accIndex].billingCycle === 'previous_month' ? -1 : 0);
+  const oldClosingDay = db.accounts[accIndex].closingDay;
+
   if (name && name.trim()) {
     db.accounts[accIndex].name = name.trim();
     // Atualiza nome da conta nas transações associadas
@@ -401,6 +433,47 @@ app.put(['/api/accounts/:id', '/accounts/:id'], async (req, res) => {
   }
   if (type) db.accounts[accIndex].type = type;
   if (color) db.accounts[accIndex].color = color;
+
+  if (closingDay !== undefined) {
+    db.accounts[accIndex].closingDay = closingDay ? Number(closingDay) : null;
+  }
+
+  let newOffset = oldOffset;
+  if (monthOffset !== undefined) {
+    newOffset = Number(monthOffset);
+    db.accounts[accIndex].monthOffset = newOffset;
+    db.accounts[accIndex].billingCycle = newOffset === -1 ? 'previous_month' : newOffset === 1 ? 'next_month' : 'same_month';
+  } else if (billingCycle !== undefined) {
+    newOffset = billingCycle === 'previous_month' ? -1 : billingCycle === 'next_month' ? 1 : 0;
+    db.accounts[accIndex].billingCycle = billingCycle;
+    db.accounts[accIndex].monthOffset = newOffset;
+  }
+
+  // Se o offset mudou, ajusta o mês das parcelas e lançamentos futuros dessa conta
+  if (newOffset !== oldOffset) {
+    const diff = newOffset - oldOffset;
+    db.transactions.forEach(t => {
+      if (t.account === db.accounts[accIndex].name && (t.installment || t.date.substring(0, 7) > t.month)) {
+        t.month = addMonths(t.month, diff);
+      }
+    });
+  }
+
+  // Se o dia de fechamento foi atualizado, re-alinha as compras do cartão
+  const currentClosingDay = db.accounts[accIndex].closingDay;
+  if (currentClosingDay && currentClosingDay !== oldClosingDay) {
+    db.transactions.forEach(t => {
+      if (t.account === db.accounts[accIndex].name && !t.installment && t.date) {
+        const day = parseInt(t.date.split('-')[2], 10);
+        const baseM = t.date.substring(0, 7);
+        if (day >= currentClosingDay) {
+          t.month = addMonths(baseM, 1);
+        } else {
+          t.month = baseM;
+        }
+      }
+    });
+  }
 
   await saveDb(db);
   res.json({ success: true, account: db.accounts[accIndex], accounts: db.accounts });
@@ -492,6 +565,8 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
     if (targetItemIds.size > 0) {
       for (const itemId of targetItemIds) {
         try {
+          // Solicita atualização do item junto à instituição
+          triggerPluggyItemSync(apiKey, itemId).catch(() => {});
           const itemAccounts = await getPluggyAccountsByItem(apiKey, itemId);
           accounts.push(...itemAccounts);
         } catch (err) {
@@ -532,58 +607,194 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
     }
 
     // 3. Processar cada conta / cartão
+    const syncFromDate = targetMonth ? `${addMonths(targetMonth, -1)}-01` : '2026-08-01';
+
     for (const acc of accounts) {
-      const bankName = acc.name || acc.marketingName || (acc.type === 'CREDIT' ? 'Cartão de Crédito' : 'Conta Bancária');
-      
-      // Auto-cadastrar a conta no app se ainda não existir
-      let existingAccount = db.accounts.find(a => a.name.toLowerCase() === bankName.toLowerCase());
+      const isCredit = acc.type === 'CREDIT' || acc.subtype === 'CREDIT_CARD';
+      const rawName = (acc.name || acc.marketingName || '').trim();
+      const lowerRaw = rawName.toLowerCase();
+      let bankName = rawName;
+
+      // Mapeamento amigável de nomes e instituições
+      if (lowerRaw === 'platinum' || lowerRaw.includes('nubank') || lowerRaw.includes('nu pagamentos')) {
+        bankName = isCredit || lowerRaw === 'platinum' ? 'Cartão Nubank' : 'Conta Nubank';
+      } else if (lowerRaw.includes('latam pass') || (lowerRaw.includes('latam') && isCredit)) {
+        bankName = 'Cartão Itaú LATAM Pass';
+      } else if (lowerRaw.includes('itau') || lowerRaw.includes('itaú')) {
+        if (isCredit || lowerRaw.includes('multiplo') || lowerRaw.includes('múltiplo')) {
+          bankName = 'Cartão Itaú Múltiplo';
+        } else {
+          bankName = 'Conta Itaú';
+        }
+      } else if (!bankName) {
+        bankName = isCredit ? 'Cartão de Crédito' : 'Conta Bancária';
+      }
+
+      const cardColor = bankName.toLowerCase().includes('nubank') 
+        ? '#820ad1' 
+        : bankName.toLowerCase().includes('itau') 
+          ? '#ec7000' 
+          : isCredit ? '#eab308' : '#3b82f6';
+
+      const isNubankCard = bankName.toLowerCase().includes('nubank') && isCredit;
+      const defaultBillingCycle = isNubankCard ? 'previous_month' : 'same_month';
+      const defaultMonthOffset = isNubankCard ? -1 : 0;
+      const defaultClosingDay = isNubankCard ? 28 : (bankName.toLowerCase().includes('itau') && isCredit ? 29 : null);
+
+      // Auto-cadastrar ou atualizar a conta no app (identificação por ID ou nome + tipo)
+      let existingAccount = db.accounts.find(a => a.id === `acc-pluggy-${acc.id}`) ||
+        db.accounts.find(a => a.name.toLowerCase() === bankName.toLowerCase() && a.type === (isCredit ? 'credit_card' : 'bank_account')) ||
+        (lowerRaw === 'platinum' ? db.accounts.find(a => a.name.toLowerCase().includes('nubank') && a.type === 'credit_card') : null);
+
       if (!existingAccount) {
         existingAccount = {
           id: `acc-pluggy-${acc.id}`,
           name: bankName,
-          type: acc.type === 'CREDIT' ? 'credit_card' : 'bank_account',
-          color: acc.type === 'CREDIT' ? '#eab308' : '#3b82f6'
+          type: isCredit ? 'credit_card' : 'bank_account',
+          color: cardColor,
+          closingDay: defaultClosingDay,
+          billingCycle: defaultBillingCycle,
+          monthOffset: defaultMonthOffset
         };
         db.accounts.push(existingAccount);
+      } else {
+        existingAccount.name = bankName;
+        existingAccount.type = isCredit ? 'credit_card' : 'bank_account';
+        existingAccount.color = cardColor;
+        if (isCredit && existingAccount.closingDay === undefined && defaultClosingDay) {
+          existingAccount.closingDay = defaultClosingDay;
+        }
+        if (existingAccount.monthOffset === undefined || (isNubankCard && existingAccount.monthOffset === 0)) {
+          existingAccount.monthOffset = defaultMonthOffset;
+          existingAccount.billingCycle = defaultBillingCycle;
+        }
       }
 
-      // Se for cartão de crédito, busca faturas para identificar vencimentos
-      if (acc.type === 'CREDIT') {
-        const bills = await getPluggyBills(apiKey, acc.id);
+      // Se for cartão de crédito, busca faturas para identificar o total da fatura
+      let bills = [];
+      if (isCredit || bankName.toLowerCase().includes('cartão') || bankName.toLowerCase().includes('nubank') || bankName.toLowerCase().includes('itaú')) {
+        bills = await getPluggyBills(apiKey, acc.id);
         billsCount += bills.length;
+        console.log(`[Pluggy Sync] Conta "${bankName}" (${acc.id}) possui ${bills.length} faturas retornadas. Balanço na conta: ${acc.balance}`);
+
+        bills.forEach(b => {
+          console.log(`  -> Fatura ID ${b.id}: totalAmount = R$ ${b.totalAmount}, dueDate = ${b.dueDate}`);
+        });
       }
 
-      // Buscar transações com resiliência para contas inativas/antigas
+      // Buscar transações recentes (filtrando a partir do mês anterior para cobrir o ciclo da fatura)
       let pluggyTxs = [];
       try {
-        pluggyTxs = await getPluggyTransactions(apiKey, acc.id, fromDate);
+        pluggyTxs = await getPluggyTransactions(apiKey, acc.id, syncFromDate);
+        console.log(`[Pluggy Sync] ${pluggyTxs.length} transações recentes retornadas para "${bankName}" desde ${syncFromDate}`);
       } catch (err) {
         console.warn(`Erro não fatal ao buscar transações da conta ${acc.id} (${bankName}):`, err.message);
       }
 
+      // Transações que caem no mês alvo (ex: 2026-10)
+      const targetMonthTxs = pluggyTxs.filter(t => (t.date || '').substring(0, 7) === (targetMonth || '2026-10'));
+
+      // Se for cartão e não tiver vindo nenhuma transação individual para o mês alvo, mas tiver fatura emitida:
+      if (isCredit && targetMonthTxs.length === 0 && bills.length > 0) {
+        const billForMonth = bills.find(b => {
+          const due = (b.dueDate || '').substring(0, 7);
+          const close = (b.billClosingDate || '').substring(0, 7);
+          return due === targetMonth || close === targetMonth;
+        }) || bills.sort((a, b) => new Date(b.dueDate || 0) - new Date(a.dueDate || 0))[0];
+
+        if (billForMonth && Number(billForMonth.totalAmount) > 0) {
+          const billDueDate = (billForMonth.dueDate || '').substring(0, 10) || `${targetMonth || '2026-10'}-10`;
+          const billMonth = (billForMonth.dueDate || '').substring(0, 7) || targetMonth || '2026-10';
+          const alreadyHasBill = db.transactions.some(t => t.pluggyId === `bill-${billForMonth.id}`);
+          if (!alreadyHasBill) {
+            db.transactions.push({
+              id: `tx-bill-${billForMonth.id}`,
+              pluggyId: `bill-${billForMonth.id}`,
+              description: `Fatura ${bankName}`,
+              amount: Number(billForMonth.totalAmount),
+              type: 'expense',
+              category: 'Outros',
+              account: bankName,
+              date: billDueDate,
+              month: billMonth,
+              paid: false,
+              installment: null
+            });
+            importedCount++;
+            console.log(`[Pluggy Sync] Criado lançamento da fatura consolidada: ${bankName} no valor de R$ ${billForMonth.totalAmount}`);
+          }
+        }
+      } else if (isCredit && targetMonthTxs.length === 0 && acc.balance && Math.abs(acc.balance) > 0) {
+        // Se a instituição reportar o valor no campo balance da conta
+        const cardBalance = Math.abs(Number(acc.balance));
+        const defaultDate = `${targetMonth || '2026-10'}-10`;
+        const alreadyHasBalanceTx = db.transactions.some(t => t.pluggyId === `balance-${acc.id}-${targetMonth || '2026-10'}`);
+        if (!alreadyHasBalanceTx) {
+          db.transactions.push({
+            id: `tx-acc-balance-${acc.id}-${targetMonth || '2026-10'}`,
+            pluggyId: `balance-${acc.id}-${targetMonth || '2026-10'}`,
+            description: `Fatura ${bankName}`,
+            amount: cardBalance,
+            type: 'expense',
+            category: 'Outros',
+            account: bankName,
+            date: defaultDate,
+            month: defaultDate.substring(0, 7),
+            paid: false,
+            installment: null
+          });
+          importedCount++;
+          console.log(`[Pluggy Sync] Criado lançamento pelo saldo da fatura: ${bankName} no valor de R$ ${cardBalance}`);
+        }
+      }
+
       for (const ptx of pluggyTxs) {
-        const alreadyExists = db.transactions.some(t => 
+        const rawAmount = Number(ptx.amount);
+        let isExpense = rawAmount < 0 || ptx.type === 'DEBIT';
+        const positiveAmount = Math.abs(rawAmount);
+        const txDate = ptx.date.substring(0, 10);
+        let txMonth = txDate.substring(0, 7);
+
+        // Detectar pagamentos de fatura ou estornos/créditos em cartão de crédito
+        const isPaymentOrCredit = /pagamento.*(saldo|fatura|recebido)|pgto.*fatura|cr[eé]dito de /i.test(ptx.description || '');
+        if (isCredit && isPaymentOrCredit) {
+          isExpense = false;
+        }
+
+        // Detectar parcelamento na descrição se houver (ex.: 'Loja 01/06' ou '3/10')
+        let installment = null;
+        const installmentMatch = ptx.description?.match(/(\d{1,2})\/(\d{1,2})/);
+        if (installmentMatch) {
+          installment = {
+            current: parseInt(installmentMatch[1], 10),
+            total: parseInt(installmentMatch[2], 10)
+          };
+        }
+
+        // Tratar ciclo de faturamento e dia de fechamento
+        // Compras feitas a partir do dia de fechamento (ex: dia 29 ou 28) caem na fatura do mês seguinte
+        const dayOfMonth = parseInt(txDate.substring(8, 10), 10);
+        const isNubank = isCredit && (bankName.toLowerCase().includes('nubank') || existingAccount.billingCycle === 'previous_month');
+        
+        if (isNubank && installment && dayOfMonth >= 28) {
+          txMonth = addMonths(txDate.substring(0, 7), 1);
+        } else if (isCredit && existingAccount.closingDay && dayOfMonth >= existingAccount.closingDay) {
+          txMonth = addMonths(txDate.substring(0, 7), 1);
+        } else if (existingAccount.monthOffset && existingAccount.monthOffset !== 0) {
+          txMonth = addMonths(txMonth, existingAccount.monthOffset);
+        }
+
+        const existingTxIndex = db.transactions.findIndex(t => 
           t.pluggyId === ptx.id || 
-          (t.description === ptx.description && t.amount === Math.abs(ptx.amount) && t.date.startsWith(ptx.date.substring(0, 10)))
+          (t.description === ptx.description && t.amount === positiveAmount && t.date.startsWith(txDate))
         );
 
-        if (!alreadyExists) {
-          const rawAmount = Number(ptx.amount);
-          const isExpense = rawAmount < 0 || ptx.type === 'DEBIT';
-          const positiveAmount = Math.abs(rawAmount);
-          const txDate = ptx.date.substring(0, 10);
-          const txMonth = txDate.substring(0, 7);
-
-          // Detectar parcelamento na descrição se houver (ex.: 'Loja 01/06' ou '3/10')
-          let installment = null;
-          const installmentMatch = ptx.description?.match(/(\d{1,2})\/(\d{1,2})/);
-          if (installmentMatch) {
-            installment = {
-              current: parseInt(installmentMatch[1], 10),
-              total: parseInt(installmentMatch[2], 10)
-            };
-          }
-
+        if (existingTxIndex !== -1) {
+          // Já existe: atualiza o mês de competência, conta e dados de parcelamento
+          db.transactions[existingTxIndex].month = txMonth;
+          db.transactions[existingTxIndex].account = bankName;
+          if (installment) db.transactions[existingTxIndex].installment = installment;
+        } else {
           const newTransaction = {
             id: `tx-pluggy-${ptx.id || Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             pluggyId: ptx.id,
@@ -594,7 +805,7 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
             account: bankName,
             date: txDate,
             month: txMonth,
-            paid: true,
+            paid: false,
             installment
           };
 

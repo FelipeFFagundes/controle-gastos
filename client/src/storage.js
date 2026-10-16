@@ -97,41 +97,69 @@ export function computeMonthData(db, month = '2026-10') {
   };
 }
 
+// Remove o sufixo de parcela da descrição (ex.: "AMAZON MARKETPLACE03/12" -> "AMAZON MARKETPLACE")
+export function normalizeInstallmentDescription(desc = '') {
+  return String(desc).replace(/\s*-?\s*\d{1,2}\s*\/\s*\d{1,2}\s*$/, '').trim() || String(desc).trim();
+}
+
 export function computeInstallments(db, currentMonth = '2026-10') {
   const installmentsMap = new Map();
 
   (db.transactions || []).forEach(t => {
+    if (t.type === 'income') return;
     if (t.installment && t.installment.total > 1) {
-      const key = `${t.description}__${t.account}`;
+      const baseDesc = normalizeInstallmentDescription(t.description);
+      // Agrupa todas as parcelas da MESMA compra (descrição base + conta + nº total de parcelas)
+      const key = `${baseDesc.toLowerCase()}__${t.account}__${t.installment.total}`;
       if (!installmentsMap.has(key)) {
         installmentsMap.set(key, {
-          description: t.description,
+          key,
+          description: baseDesc,
           account: t.account,
           category: t.category,
-          amountPerInstallment: t.amount,
-          totalAmount: t.amount * t.installment.total,
           totalInstallments: t.installment.total,
           history: []
         });
       }
-      installmentsMap.get(key).history.push({
-        id: t.id,
-        month: t.month,
-        current: t.installment.current,
-        paid: t.paid,
-        amount: t.amount
-      });
+      const group = installmentsMap.get(key);
+      // Evita duplicar a mesma parcela
+      if (!group.history.some(h => h.current === t.installment.current)) {
+        group.history.push({
+          id: t.id,
+          month: t.month,
+          current: t.installment.current,
+          paid: t.paid,
+          amount: Number(t.amount) || 0
+        });
+      }
     }
   });
 
-  return Array.from(installmentsMap.values()).map(inst => {
-    inst.history.sort((a, b) => a.current - b.current);
-    const match = inst.history.find(h => h.month === currentMonth);
-    const activeCurrent = match ? match.current : (inst.history[inst.history.length - 1]?.current || 1);
-    return {
-      ...inst,
-      currentInstallment: activeCurrent,
-      isCompleted: activeCurrent >= inst.totalInstallments
-    };
-  });
+  return Array.from(installmentsMap.values())
+    .map(inst => {
+      inst.history.sort((a, b) => a.current - b.current);
+      const match = inst.history.find(h => h.month === currentMonth);
+      const past = inst.history.filter(h => h.month < currentMonth);
+      const currentInstallment = match
+        ? match.current
+        : (past.length ? Math.max(...past.map(h => h.current)) : 0);
+      const amountPerInstallment = match
+        ? match.amount
+        : (inst.history[inst.history.length - 1]?.amount || 0);
+      const remainingInstallments = Math.max(0, inst.totalInstallments - currentInstallment);
+      return {
+        ...inst,
+        amountPerInstallment,
+        amountThisMonth: match ? match.amount : 0,
+        totalAmount: amountPerInstallment * inst.totalInstallments,
+        currentInstallment,
+        currentInMonth: match ? match.current : null,
+        remainingInstallments,
+        remainingDebt: remainingInstallments * amountPerInstallment,
+        isCompleted: currentInstallment >= inst.totalInstallments && !match
+      };
+    })
+    // Mostra apenas compras com parcela neste mês ou ainda por vir
+    .filter(inst => !inst.isCompleted)
+    .sort((a, b) => b.amountThisMonth - a.amountThisMonth);
 }

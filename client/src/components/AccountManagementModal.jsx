@@ -18,7 +18,8 @@ import {
   FormControl,
   InputLabel,
   Divider,
-  Chip
+  Chip,
+  FormHelperText
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
@@ -49,6 +50,8 @@ export function AccountManagementModal({
   const [name, setName] = useState('');
   const [type, setType] = useState('credit_card');
   const [color, setColor] = useState('#eab308');
+  const [billingCycle, setBillingCycle] = useState('same_month');
+  const [closingDay, setClosingDay] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   if (!isOpen) return null;
@@ -58,6 +61,8 @@ export function AccountManagementModal({
     setName(acc.name);
     setType(acc.type || 'credit_card');
     setColor(acc.color || '#3b82f6');
+    setBillingCycle(acc.billingCycle || (acc.monthOffset === -1 ? 'previous_month' : 'same_month'));
+    setClosingDay(acc.closingDay ? String(acc.closingDay) : '');
     setIsCreating(false);
   };
 
@@ -66,6 +71,8 @@ export function AccountManagementModal({
     setName('');
     setType('credit_card');
     setColor('#eab308');
+    setBillingCycle('same_month');
+    setClosingDay('');
     setIsCreating(true);
   };
 
@@ -73,6 +80,8 @@ export function AccountManagementModal({
     setEditingId(null);
     setIsCreating(false);
     setName('');
+    setBillingCycle('same_month');
+    setClosingDay('');
   };
 
   const handleSave = (e) => {
@@ -83,7 +92,10 @@ export function AccountManagementModal({
       id: isCreating ? null : editingId,
       name: name.trim(),
       type,
-      color
+      color,
+      closingDay: type === 'credit_card' && closingDay ? parseInt(closingDay, 10) : null,
+      billingCycle,
+      monthOffset: billingCycle === 'previous_month' ? -1 : billingCycle === 'next_month' ? 1 : 0
     });
 
     handleCancelForm();
@@ -159,6 +171,40 @@ export function AccountManagementModal({
               </FormControl>
             </Box>
 
+            {type === 'credit_card' && (
+              <>
+                <TextField
+                  label="Dia de Fechamento da Fatura (1 a 31)"
+                  type="number"
+                  size="small"
+                  fullWidth
+                  placeholder="Ex.: 28, 29, 30"
+                  inputProps={{ min: 1, max: 31 }}
+                  value={closingDay}
+                  onChange={(e) => setClosingDay(e.target.value)}
+                  helperText="Compras feitas a partir deste dia caem automaticamente na fatura do mês seguinte (ex.: compras no dia 30/09 entram na fatura de Outubro)."
+                />
+
+                <FormControl fullWidth size="small">
+                  <InputLabel>Ciclo de Fatura / Mês de Competência</InputLabel>
+                  <Select
+                    value={billingCycle}
+                    label="Ciclo de Fatura / Mês de Competência"
+                    onChange={(e) => setBillingCycle(e.target.value)}
+                  >
+                    <MenuItem value="same_month">Padrão (mês original da data da compra)</MenuItem>
+                    <MenuItem value="previous_month">Antecipar 1 mês (-1) (Nubank - fatura projetada para mês anterior)</MenuItem>
+                    <MenuItem value="next_month">Postergar 1 mês (+1)</MenuItem>
+                  </Select>
+                  <FormHelperText sx={{ fontSize: '0.72rem' }}>
+                    {billingCycle === 'previous_month'
+                      ? 'Recomendado para Nubank: parcelas que o banco projeta para o mês seguinte entram na competência deste mês.'
+                      : 'Usa a data original registrada pelo banco (ideal para Itaú e cartões tradicionais).'}
+                  </FormHelperText>
+                </FormControl>
+              </>
+            )}
+
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
               <Button size="small" onClick={handleCancelForm} color="inherit">
                 Cancelar
@@ -205,7 +251,7 @@ export function AccountManagementModal({
               <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: acc.color || 'primary.main', mr: 2, flexShrink: 0 }} />
               <ListItemText
                 primary={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Typography variant="body2" fontWeight={700}>
                       {acc.name}
                     </Typography>
@@ -216,6 +262,23 @@ export function AccountManagementModal({
                       color={acc.type === 'credit_card' ? 'warning' : 'info'}
                       variant="outlined"
                     />
+                    {(acc.billingCycle === 'previous_month' || acc.monthOffset === -1) && (
+                      <Chip
+                        label="Ciclo Nubank (-1m)"
+                        size="small"
+                        sx={{ height: 20, fontSize: '0.65rem', borderColor: '#a855f7', color: '#c084fc' }}
+                        variant="outlined"
+                      />
+                    )}
+                    {acc.closingDay && (
+                      <Chip
+                        label={`Fecha dia ${acc.closingDay}`}
+                        size="small"
+                        sx={{ height: 20, fontSize: '0.65rem' }}
+                        color="warning"
+                        variant="outlined"
+                      />
+                    )}
                   </Box>
                 }
               />

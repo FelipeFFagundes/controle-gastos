@@ -53,20 +53,51 @@ export async function createPluggyConnectToken(apiKey, itemId = null) {
  */
 export async function getPluggyItems(apiKey) {
   try {
-    const response = await fetch(`${PLUGGY_API_URL}/v2/items`, {
+    let response = await fetch(`${PLUGGY_API_URL}/items`, {
       headers: {
         'Content-Type': 'application/json',
         'X-API-KEY': apiKey
       }
     });
+    if (!response.ok) {
+      response = await fetch(`${PLUGGY_API_URL}/v2/items`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': apiKey
+        }
+      });
+    }
     if (response.ok) {
       const data = await response.json();
       return data.results || [];
     }
   } catch (e) {
-    console.warn('GET /v2/items não disponível:', e.message);
+    console.warn('Listagem de itens da Pluggy:', e.message);
   }
   return [];
+}
+
+/**
+ * Solicita à Pluggy atualização/re-sincronização do item junto ao banco
+ */
+export async function triggerPluggyItemSync(apiKey, itemId) {
+  try {
+    const res = await fetch(`${PLUGGY_API_URL}/items/${itemId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      },
+      body: JSON.stringify({})
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn(`Aviso ao solicitar sincronização do item ${itemId}:`, err.message);
+  }
+  return null;
 }
 
 /**
@@ -120,37 +151,54 @@ export async function getPluggyBills(apiKey, accountId) {
  * Na API v2 da Pluggy os parâmetros são: accountId, dateFrom, dateTo, billId
  */
 export async function getPluggyTransactions(apiKey, accountId, fromDate, billId = null) {
-  let url = `${PLUGGY_API_URL}/v2/transactions?accountId=${accountId}`;
-  if (fromDate) {
-    url += `&dateFrom=${fromDate}`;
-  }
-  if (billId) {
-    url += `&billId=${billId}`;
-  }
+  let allResults = [];
+  let nextCursor = null;
+  let pageCount = 0;
+  const maxPages = 5; // até 2500 transações
 
-  let response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-KEY': apiKey
+  do {
+    let url = `${PLUGGY_API_URL}/v2/transactions?accountId=${accountId}`;
+    if (fromDate) {
+      url += `&dateFrom=${fromDate}`;
     }
-  });
+    if (billId) {
+      url += `&billId=${billId}`;
+    }
+    if (nextCursor) {
+      url += `&after=${nextCursor}`;
+    }
 
-  // Se a conta retornou 410 Gone ou 404, significa que essa subconta/cartão específico foi desconectado ou não mantém mais histórico na Pluggy
-  if (response.status === 410 || response.status === 404) {
-    console.warn(`Conta ${accountId} retornou ${response.status} (${response.statusText}). Ignorando.`);
-    return [];
-  }
+    let response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      }
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.warn(`Aviso ao buscar transações da conta ${accountId} (${response.status}): ${errorText}`);
-    return [];
-  }
+    if (response.status === 410 || response.status === 404) {
+      console.warn(`Conta ${accountId} retornou ${response.status} (${response.statusText}). Ignorando.`);
+      break;
+    }
 
-  const data = await response.json();
-  const txs = data.results || [];
-  console.log(`Sucesso: ${txs.length} transações encontradas para conta ${accountId}`);
-  return txs;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`Aviso ao buscar transações da conta ${accountId} (${response.status}): ${errorText}`);
+      break;
+    }
+
+    const data = await response.json();
+    const pageResults = data.results || [];
+    allResults.push(...pageResults);
+    nextCursor = data.next || null;
+    pageCount++;
+
+    if (!nextCursor || pageResults.length === 0) {
+      break;
+    }
+  } while (nextCursor && pageCount < maxPages);
+
+  console.log(`Sucesso: Total de ${allResults.length} transações encontradas para conta ${accountId}`);
+  return allResults;
 }
 
 /**

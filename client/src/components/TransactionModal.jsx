@@ -38,6 +38,7 @@ export function TransactionModal({
   const [category, setCategory] = useState('');
   const [account, setAccount] = useState('');
   const [date, setDate] = useState('');
+  const [month, setMonth] = useState('');
   const [paid, setPaid] = useState(false);
   const [isInstallment, setIsInstallment] = useState(false);
   const [currentInstallment, setCurrentInstallment] = useState(1);
@@ -52,6 +53,7 @@ export function TransactionModal({
       setCategory(editTransaction.category || (categories[0]?.name || 'Outros'));
       setAccount(editTransaction.account || (accounts[0]?.name || 'Fatura XP'));
       setDate(editTransaction.date || `${currentMonth}-15`);
+      setMonth(editTransaction.month || (editTransaction.date ? editTransaction.date.substring(0, 7) : currentMonth));
       setPaid(Boolean(editTransaction.paid));
       if (editTransaction.installment) {
         setIsInstallment(true);
@@ -70,6 +72,7 @@ export function TransactionModal({
       setCategory(categories[0]?.name || 'Outros');
       setAccount(accounts[0]?.name || 'Fatura XP');
       setDate(`${currentMonth}-15`);
+      setMonth(currentMonth);
       setPaid(false);
       setIsInstallment(false);
       setCurrentInstallment(1);
@@ -77,6 +80,22 @@ export function TransactionModal({
       setGenerateFutureMonths(true);
     }
   }, [editTransaction, isOpen, currentMonth, categories, accounts]);
+
+  const handleDateChange = (newDate) => {
+    setDate(newDate);
+    if (!editTransaction && newDate) {
+      const day = parseInt(newDate.split('-')[2], 10);
+      const baseM = newDate.substring(0, 7);
+      const targetAcc = accounts.find(a => a.name === account);
+      if (targetAcc?.closingDay && day >= targetAcc.closingDay) {
+        const [y, m] = baseM.split('-').map(Number);
+        const d = new Date(y, m, 1);
+        setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      } else {
+        setMonth(baseM);
+      }
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -94,6 +113,7 @@ export function TransactionModal({
       category: type === 'income' ? 'Salário & Entradas' : (category || 'Outros'),
       account,
       date,
+      month: month || date.substring(0, 7),
       paid,
       isInstallment: type === 'expense' ? isInstallment : false,
       currentInstallment: parseInt(currentInstallment, 10),
@@ -210,33 +230,34 @@ export function TransactionModal({
                   </Select>
                 </FormControl>
               </Grid>
-            ) : (
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Data Prevista de Recebimento"
-                  type="date"
-                  fullWidth
-                  size="small"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-            )}
+            ) : null}
           </Grid>
 
-          {/* Data para Despesas */}
-          {type === 'expense' && (
-            <TextField
-              label="Data da Compra"
-              type="date"
-              fullWidth
-              size="small"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-            />
-          )}
+          {/* Data e Mês da Fatura / Competência */}
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label={type === 'income' ? 'Data de Recebimento' : 'Data da Compra'}
+                type="date"
+                fullWidth
+                size="small"
+                value={date}
+                onChange={(e) => handleDateChange(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Mês da Fatura / Competência"
+                fullWidth
+                size="small"
+                placeholder="AAAA-MM (ex.: 2026-10)"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                helperText="Mês em que o gasto entra no cálculo"
+              />
+            </Grid>
+          </Grid>
 
           {/* Parcelamento */}
           {type === 'expense' && (

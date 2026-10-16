@@ -33,7 +33,6 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import LayersIcon from '@mui/icons-material/Layers';
-import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
 
 import { theme } from './theme';
 import { SummaryCards } from './components/SummaryCards';
@@ -195,7 +194,7 @@ export default function App() {
         db.transactions[idx] = {
           ...db.transactions[idx],
           ...formData,
-          month: formData.date ? formData.date.substring(0, 7) : db.transactions[idx].month
+          month: formData.month || (formData.date ? formData.date.substring(0, 7) : db.transactions[idx].month)
         };
       }
       showToast('Lançamento atualizado!');
@@ -221,7 +220,7 @@ export default function App() {
       } = formData;
 
       const baseDate = new Date(date);
-      const baseMonth = date.substring(0, 7);
+      const baseMonth = formData.month || date.substring(0, 7);
       const numAmount = Number(amount);
 
       if (isInstallment && totalInstallments > 1 && generateFutureMonths) {
@@ -285,27 +284,43 @@ export default function App() {
     fetchData(currentMonth);
   };
 
-  // Alternar status pago/pendente (local imediato + API em paralelo)
-  const handleTogglePaid = (id) => {
+  // Alternar status pago/pendente (local imediato + await da API)
+  const handleTogglePaid = async (id) => {
     const db = getLocalDb();
-    const tx = db.transactions.find(t => t.id === id);
+    const tx = (db.transactions || []).find(t => t.id === id);
     if (tx) {
       tx.paid = !tx.paid;
       saveLocalDb(db);
+      setData(computeMonthData(db, currentMonth));
+      try {
+        await fetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' });
+      } catch (e) {
+        console.warn('Erro ao alternar status no servidor:', e);
+      }
       fetchData(currentMonth);
-      fetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' }).catch(() => {});
     }
   };
 
-  // Deletar transação (local imediato + API em paralelo)
-  const handleDeleteTransaction = (id) => {
+  // Deletar transação (local imediato + await da API antes do re-fetch)
+  const handleDeleteTransaction = async (id) => {
     if (!window.confirm('Tem certeza que deseja remover este lançamento?')) return;
     const db = getLocalDb();
-    db.transactions = db.transactions.filter(t => t.id !== id);
+    db.transactions = (db.transactions || []).filter(t => t.id !== id);
     saveLocalDb(db);
+    
+    // Atualiza imediatamente a UI a partir do banco local
+    setData(computeMonthData(db, currentMonth));
+    setInstallments(computeInstallments(db, currentMonth));
     showToast('Lançamento removido.');
+
+    // Aguarda a exclusão no backend antes de refazer a sincronização geral para evitar restauração indevida
+    try {
+      await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Erro ao deletar transação no servidor:', e);
+    }
+    fetchMonths();
     fetchData(currentMonth);
-    fetch(`/api/transactions/${id}`, { method: 'DELETE' }).catch(() => {});
   };
 
   // Limpar todas as transações para começar do zero com a Pluggy
@@ -314,10 +329,18 @@ export default function App() {
     const db = getLocalDb();
     db.transactions = [];
     saveLocalDb(db);
-    showToast('Lançamentos limpos! Pronto para sincronizar da Pluggy.');
+    // Limpa imediatamente lançamentos e parcelamentos na interface
+    setData(computeMonthData(db, currentMonth));
+    setInstallments([]);
+    showToast('Lançamentos e parcelamentos limpos! Pronto para sincronizar da Pluggy.');
+    // Aguarda a limpeza no backend antes de re-sincronizar (evita restaurar dados antigos)
+    try {
+      await fetch('/api/clear', { method: 'POST' });
+    } catch (e) {
+      console.warn('Erro ao limpar dados no servidor:', e);
+    }
     fetchMonths();
     fetchData(currentMonth);
-    fetch('/api/clear', { method: 'POST' }).catch(() => {});
   };
 
   // Atualizar meta de sobra prevista (aumentar/diminuir ou definir valor manual)
@@ -361,7 +384,9 @@ export default function App() {
         }
         showToast(`Cartão/Conta "${accData.name}" atualizado!`);
       }
-      fetch(`/api/accounts/${accData.id}`, {
+      saveLocalDb(db);
+      setData(computeMonthData(db, currentMonth));
+      await fetch(`/api/accounts/${accData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(accData)
@@ -372,18 +397,22 @@ export default function App() {
         id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         name: accData.name,
         type: accData.type || 'credit_card',
-        color: accData.color || '#3b82f6'
+        color: accData.color || '#3b82f6',
+        closingDay: accData.closingDay || null,
+        billingCycle: accData.billingCycle || 'same_month',
+        monthOffset: accData.monthOffset || 0
       };
       db.accounts.push(newAcc);
       showToast(`Cartão/Conta "${accData.name}" adicionado!`);
-      fetch('/api/accounts', {
+      saveLocalDb(db);
+      setData(computeMonthData(db, currentMonth));
+      await fetch('/api/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAcc)
       }).catch(() => {});
     }
 
-    saveLocalDb(db);
     fetchData(currentMonth);
   };
 
@@ -393,9 +422,17 @@ export default function App() {
     const db = getLocalDb();
     db.accounts = (db.accounts || []).filter(a => a.id !== id);
     saveLocalDb(db);
+    // Atualiza o estado da interface imediatamente sem aguardar
+    setData(computeMonthData(db, currentMonth));
     showToast(`Conta/Cartão "${name}" removido.`);
+    
+    // Aguarda a exclusão no backend antes de refazer o fetch geral
+    try {
+      await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Erro ao deletar no servidor:', e);
+    }
     fetchData(currentMonth);
-    fetch(`/api/accounts/${id}`, { method: 'DELETE' }).catch(() => {});
   };
 
   // Restaurar dados originais da planilha
@@ -525,7 +562,7 @@ export default function App() {
       </AppBar>
 
       {/* Conteúdo Central */}
-      <Container maxWidth="lg" sx={{ py: { xs: 1.5, sm: 3 }, pb: { xs: 11, md: 4 }, px: { xs: 1.5, sm: 3 } }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 1.5, sm: 3 }, pb: { xs: 11, md: 4 }, px: { xs: 1.5, sm: 3, md: 4 }, width: '100%' }}>
         {/* Abas Superiores no Desktop */}
         <Box sx={{ display: { xs: 'none', sm: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Tabs
@@ -560,7 +597,7 @@ export default function App() {
 
         {/* Exibição da Aba Atual */}
         {activeTab === 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, sm: 3 } }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, sm: 3 }, width: '100%' }}>
             {/* Cards de Resumo */}
             <SummaryCards
               summary={data.summary}
@@ -571,9 +608,17 @@ export default function App() {
               onOpenManageAccounts={() => setIsAccountsModalOpen(true)}
             />
 
-            {/* Listagem de Transações e Barra Lateral */}
-            <Grid container spacing={{ xs: 2, md: 3 }} sx={{ width: '100%', m: 0 }}>
-              <Grid item xs={12} md={8} sx={{ width: '100%', p: { xs: '0 !important', md: '12px !important' }, mb: { xs: 2, md: 0 } }}>
+            {/* Listagem de Transações e Barra Lateral (CSS Grid sem offsets ou margens à esquerda) */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', md: '1fr 340px', lg: '1fr 380px' },
+                gap: { xs: 2, md: 3 },
+                width: '100%',
+                alignItems: 'start'
+              }}
+            >
+              <Box sx={{ width: '100%', minWidth: 0 }}>
                 <TransactionList
                   transactions={data.transactions || []}
                   accounts={data.accounts || []}
@@ -587,38 +632,20 @@ export default function App() {
                   }}
                   onDelete={handleDeleteTransaction}
                 />
-              </Grid>
+              </Box>
 
               {/* Barra Lateral */}
-              <Grid item xs={12} md={4} sx={{ width: '100%', p: { xs: '0 !important', md: '12px !important' } }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <CategoryBreakdown
-                    expensesByCategory={data.summary?.expensesByCategory || {}}
-                    categories={data.categories || []}
-                    totalExpense={data.summary?.totalExpense || 0}
-                  />
-
-                  {/* Card de Dicas */}
-                  <Paper sx={{ p: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', border: '1px solid', borderColor: 'divider' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <LightbulbOutlinedIcon color="primary" fontSize="small" />
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Dica Rápida
-                      </Typography>
-                    </Box>
-                    <Typography variant="caption" color="text.secondary" paragraph sx={{ mb: 0.5 }}>
-                      • No celular, clique no círculo para marcar uma despesa como <strong>Paga</strong>.
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      • Compras parceladas geram automaticamente as próximas parcelas nos meses seguintes.
-                    </Typography>
-                  </Paper>
-                </Box>
-              </Grid>
-            </Grid>
+              <Box sx={{ width: '100%', minWidth: 0 }}>
+                <CategoryBreakdown
+                  expensesByCategory={data.summary?.expensesByCategory || {}}
+                  categories={data.categories || []}
+                  totalExpense={data.summary?.totalExpense || 0}
+                />
+              </Box>
+            </Box>
           </Box>
         ) : (
-          <InstallmentsTracker installments={installments} currentMonth={currentMonth} />
+          <InstallmentsTracker installments={installments} currentMonth={currentMonth} accounts={data.accounts} />
         )}
       </Container>
 

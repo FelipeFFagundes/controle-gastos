@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card,
-  CardContent,
   Typography,
   Box,
   LinearProgress,
@@ -15,15 +14,16 @@ import {
   TextField,
   Chip
 } from '@mui/material';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import ScheduleIcon from '@mui/icons-material/Schedule';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CloseIcon from '@mui/icons-material/Close';
+import EditIcon from '@mui/icons-material/Edit';
 
 export function SummaryCards({ 
   summary, 
@@ -39,8 +39,6 @@ export function SummaryCards({
     totalIncome = 0,
     totalExpense = 0,
     netBalance = 0,
-    totalPaid = 0,
-    totalPending = 0,
     creditCardExpenses = 0,
     fixedExpenses = 0,
     availableToSpend = 0,
@@ -72,52 +70,85 @@ export function SummaryCards({
     });
   };
 
-  // Quanto da renda total já foi comprometida pelos gastos
+  // Percentual de comprometimento da renda
   const budgetCommittedPercent = totalIncome > 0 ? Math.min(100, Math.round((totalExpense / totalIncome) * 100)) : 0;
   const isOverBudget = availableToSpend < 0;
 
   return (
-    <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {/* Banner Principal de Controle: Quanto ainda posso gastar no Cartão */}
-      <Card
+    <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* 1. OS 3 PILARES PRIORITÁRIOS (GRID CSS SEM BUG DE MARGEM LATERAL) */}
+      <Box
         sx={{
-          width: '100%',
-          p: { xs: 2, sm: 2.5 },
-          background: isOverBudget
-            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%)'
-            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%)',
-          borderColor: isOverBudget ? 'error.main' : 'secondary.main',
-          borderWidth: 1.5
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+          gap: 2,
+          width: '100%'
         }}
       >
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2 }}>
+        {/* CARD 1 (DESTAQUE): LIMITE DISPONÍVEL PARA GASTOS */}
+        <Card
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            border: '1.5px solid',
+            borderColor: isOverBudget ? 'error.main' : 'secondary.main',
+            bgcolor: isOverBudget ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}
+        >
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-              <CreditCardIcon color={isOverBudget ? 'error' : 'secondary'} fontSize="small" />
-              <Typography variant="overline" sx={{ letterSpacing: 1, fontWeight: 700, color: isOverBudget ? 'error.light' : 'secondary.light' }}>
-                {isOverBudget ? 'ORÇAMENTO ESTOURADO' : 'LIMITE DISPONÍVEL PARA GASTAR NO CARTÃO'}
-              </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CreditCardIcon color={isOverBudget ? 'error' : 'secondary'} fontSize="small" />
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  letterSpacing={0.5}
+                  sx={{ textTransform: 'uppercase', color: isOverBudget ? 'error.light' : 'secondary.light' }}
+                >
+                  Disponível para Gastos
+                </Typography>
+              </Box>
+              <Chip
+                label={isOverBudget ? 'Estourado' : 'Livre'}
+                size="small"
+                color={isOverBudget ? 'error' : 'secondary'}
+                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }}
+              />
             </Box>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: isOverBudget ? 'error.main' : 'secondary.main', fontSize: { xs: '1.8rem', sm: '2.3rem' } }}>
+
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                color: isOverBudget ? 'error.main' : 'secondary.main',
+                fontSize: { xs: '1.8rem', sm: '2.1rem' }
+              }}
+            >
               {isOverBudget ? `- ${formatBRL(Math.abs(availableToSpend))}` : formatBRL(availableToSpend)}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
               {isOverBudget
-                ? customSurplusTarget !== null
-                  ? `Seus gastos superaram o teto para garantir a meta de sobra de ${formatBRL(customSurplusTarget)}!`
-                  : 'Suas despesas superaram sua renda prevista para o fim do mês!'
-                : customSurplusTarget !== null
-                  ? `Você ainda pode gastar até ${formatBRL(availableToSpend)} no cartão para que sobre exatamente ${formatBRL(customSurplusTarget)} no fim do mês.`
-                  : `Você ainda pode gastar até ${formatBRL(availableToSpend)} e conseguir pagar 100% das suas faturas com seu salário.`}
+                ? 'Limite excedido para a meta definida!'
+                : 'Pode gastar no cartão mantendo a meta de sobra'}
             </Typography>
           </Box>
 
-          <Box sx={{ width: { xs: '100%', sm: 220 }, bgcolor: 'rgba(0, 0, 0, 0.25)', p: 1.5, borderRadius: 2, border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+          {/* Barra de comprometimento de renda compacta */}
+          <Box sx={{ mt: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
               <Typography variant="caption" color="text.secondary">
-                Renda Comprometida:
+                Renda comprometida
               </Typography>
-              <Typography variant="caption" fontWeight={700} color={budgetCommittedPercent > 90 ? 'error.light' : 'secondary.light'}>
+              <Typography
+                variant="caption"
+                fontWeight={700}
+                color={budgetCommittedPercent > 90 ? 'error.light' : 'secondary.light'}
+              >
                 {budgetCommittedPercent}%
               </Typography>
             </Box>
@@ -125,188 +156,327 @@ export function SummaryCards({
               variant="determinate"
               value={budgetCommittedPercent}
               color={budgetCommittedPercent > 90 ? 'error' : budgetCommittedPercent > 70 ? 'warning' : 'secondary'}
-              sx={{ height: 8, borderRadius: 4, bgcolor: 'rgba(255, 255, 255, 0.1)' }}
+              sx={{ height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
             />
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75, textAlign: 'right', fontSize: '0.7rem' }}>
-              {formatBRL(totalExpense)} de {formatBRL(totalIncome)}
-            </Typography>
           </Box>
-        </Box>
-      </Card>
-
-      {/* Cards de Resumo: Empilhados 100% no mobile */}
-      <Box
-        sx={{
-          width: '100%',
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 1.5
-        }}
-      >
-        {/* 1. Salário & Entradas Previstas */}
-        <Card 
-          sx={{ 
-            width: '100%',
-            borderColor: 'rgba(16, 185, 129, 0.25)',
-            bgcolor: 'rgba(16, 185, 129, 0.04)'
-          }}
-        >
-          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                Salário & Entradas
-              </Typography>
-              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.15)', color: 'secondary.main', display: 'flex' }}>
-                <TrendingUpIcon fontSize="small" />
-              </Box>
-            </Box>
-            <Typography variant="h5" color="secondary.main" sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
-              {formatBRL(totalIncome)}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Receita que vai entrar até o fim do mês
-            </Typography>
-          </CardContent>
         </Card>
 
-        {/* 2. Total em Faturas de Cartão */}
-        <Card 
-          sx={{ 
-            width: '100%',
-            borderColor: 'rgba(244, 63, 94, 0.25)',
-            bgcolor: 'rgba(244, 63, 94, 0.04)'
-          }}
-        >
-          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                Faturas dos Cartões
-              </Typography>
-              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.15)', color: 'error.main', display: 'flex' }}>
-                <CreditCardIcon fontSize="small" />
-              </Box>
-            </Box>
-            <Typography variant="h5" color="error.main" sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
-              {formatBRL(creditCardExpenses > 0 ? creditCardExpenses : totalExpense)}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Gastos acumulados a pagar nas faturas
-            </Typography>
-          </CardContent>
-        </Card>
-
-        {/* 3. Despesas Fixas / Outros */}
-        <Card 
-          sx={{ 
-            width: '100%',
-            borderColor: 'rgba(245, 158, 11, 0.25)',
-            bgcolor: 'rgba(245, 158, 11, 0.04)'
-          }}
-        >
-          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                Despesas Fixas / PIX
-              </Typography>
-              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(245, 158, 11, 0.15)', color: 'warning.main', display: 'flex' }}>
-                <ScheduleIcon fontSize="small" />
-              </Box>
-            </Box>
-            <Typography variant="h5" color="warning.main" sx={{ mt: 1, fontWeight: 700, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
-              {formatBRL(fixedExpenses)}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Contas pagas em conta corrente/PIX
-            </Typography>
-          </CardContent>
-        </Card>
-
-        {/* 4. Sobra Prevista no Fim do Mês (Ajustável) */}
-        <Card 
-          sx={{ 
-            width: '100%',
-            borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.35)' : 'rgba(239, 68, 68, 0.35)',
-            bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+        {/* CARD 2: META DE SOBRA */}
+        <Card
+          sx={{
+            p: { xs: 2, sm: 2.5 },
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            border: '1px solid',
+            borderColor: 'rgba(59, 130, 246, 0.3)',
+            bgcolor: 'rgba(59, 130, 246, 0.03)',
+            width: '100%',
+            boxSizing: 'border-box'
           }}
         >
-          <CardContent sx={{ p: { xs: 2, sm: 2.5 }, pb: 1, '&:last-child': { pb: 1.5 } }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                  {customSurplusTarget !== null ? 'Meta de Sobra' : 'Sobra Prevista'}
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SavingsOutlinedIcon color="primary" fontSize="small" />
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  letterSpacing={0.5}
+                  sx={{ textTransform: 'uppercase', color: 'primary.light' }}
+                >
+                  Meta de Sobra
                 </Typography>
-                {customSurplusTarget !== null && (
-                  <Chip label="Manual" size="small" color="primary" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }} />
-                )}
               </Box>
-              <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)', color: netBalance >= 0 ? 'primary.main' : 'error.main', display: 'flex' }}>
-                <AccountBalanceWalletIcon fontSize="small" />
-              </Box>
+              {customSurplusTarget !== null && (
+                <Chip
+                  label="Personalizada"
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }}
+                />
+              )}
             </Box>
 
-            <Typography variant="h5" color={displayedSurplus >= 0 ? 'primary.light' : 'error.main'} sx={{ mt: 1, fontWeight: 800, fontSize: { xs: '1.4rem', sm: '1.5rem' } }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                color: displayedSurplus >= 0 ? 'primary.light' : 'error.main',
+                fontSize: { xs: '1.8rem', sm: '2.1rem' }
+              }}
+            >
               {formatBRL(displayedSurplus)}
             </Typography>
 
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
               {customSurplusTarget !== null 
-                ? `Real calculado: ${formatBRL(netBalance)}`
-                : (netBalance >= 0 ? 'Sobra após pagar todas faturas' : 'Déficit previsto')}
+                ? 'Meta manual definida para o fim do mês'
+                : 'Sobra calculada após quitar todas as despesas'}
+            </Typography>
+          </Box>
+
+          {/* Ajuste Rápido da Sobra */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              mt: 2,
+              pt: 1.5,
+              borderTop: '1px solid',
+              borderColor: 'divider'
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" fontWeight={500}>
+              Ajustar meta:
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <IconButton
+                size="small"
+                onClick={() => handleAdjustStep(-100)}
+                title="Diminuir R$ 100"
+                sx={{ p: 0.5, bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' } }}
+              >
+                <RemoveIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setIsEditingSurplus(true)}
+                sx={{ fontSize: '0.72rem', px: 1, py: 0.25, minWidth: 'auto', textTransform: 'none', fontWeight: 600, height: 26 }}
+              >
+                Definir
+              </Button>
+              <IconButton
+                size="small"
+                onClick={() => handleAdjustStep(100)}
+                title="Aumentar R$ 100"
+                sx={{ p: 0.5, bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' } }}
+              >
+                <AddIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            </Box>
+          </Box>
+        </Card>
+
+        {/* CARD 3: DESPESAS FIXAS */}
+        <Card
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            border: '1px solid',
+            borderColor: 'rgba(245, 158, 11, 0.3)',
+            bgcolor: 'rgba(245, 158, 11, 0.03)',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}
+        >
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ScheduleIcon color="warning" fontSize="small" />
+                <Typography
+                  variant="caption"
+                  fontWeight={700}
+                  letterSpacing={0.5}
+                  sx={{ textTransform: 'uppercase', color: 'warning.light' }}
+                >
+                  Despesas Fixas
+                </Typography>
+              </Box>
+              <Chip
+                label="Contas & PIX"
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }}
+              />
+            </Box>
+
+            <Typography
+              variant="h4"
+              color="warning.main"
+              sx={{
+                fontWeight: 800,
+                fontSize: { xs: '1.8rem', sm: '2.1rem' }
+              }}
+            >
+              {formatBRL(fixedExpenses)}
             </Typography>
 
-            {/* Controles de Ajuste da Sobra: Diminuir / Aumentar / Definir */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1.5, pt: 1, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-              <Typography variant="caption" color="text.secondary" fontWeight={500}>
-                Ajustar:
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <IconButton
-                  size="small"
-                  onClick={() => handleAdjustStep(-100)}
-                  title="Diminuir R$ 100 da sobra"
-                  sx={{ p: 0.5, bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' } }}
-                >
-                  <RemoveIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={() => setIsEditingSurplus(true)}
-                  sx={{ fontSize: '0.75rem', px: 1, py: 0.25, minWidth: 'auto', textTransform: 'none', fontWeight: 600 }}
-                >
-                  Definir
-                </Button>
-                <IconButton
-                  size="small"
-                  onClick={() => handleAdjustStep(100)}
-                  title="Aumentar R$ 100 na sobra"
-                  sx={{ p: 0.5, bgcolor: 'rgba(255, 255, 255, 0.04)', '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' } }}
-                >
-                  <AddIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Box>
-            </Box>
-          </CardContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
+              Contas pagas diretamente em conta corrente ou PIX
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="caption" color="text.secondary">
+              Gastos não vinculados a fatura de cartão
+            </Typography>
+          </Box>
         </Card>
       </Box>
 
-      {/* Modal / Dialog para Definir Sobra Manualmente */}
+      {/* 2. FAIXA DE INFORMAÇÕES SECUNDÁRIAS (ORGANIZADAS, SEM POLUIR A TELA) */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+          gap: 1.5,
+          width: '100%'
+        }}
+      >
+        {/* Indicador Secundário 1: Salário / Entradas */}
+        <Card sx={{ p: 1.5, px: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Salário & Entradas
+            </Typography>
+            <TrendingUpIcon sx={{ fontSize: 16, color: 'secondary.main' }} />
+          </Box>
+          <Typography variant="subtitle1" fontWeight={700} color="secondary.main" sx={{ mt: 0.25 }}>
+            {formatBRL(totalIncome)}
+          </Typography>
+        </Card>
+
+        {/* Indicador Secundário 2: Total em Faturas de Cartão */}
+        <Card sx={{ p: 1.5, px: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Faturas dos Cartões
+            </Typography>
+            <CreditCardIcon sx={{ fontSize: 16, color: 'error.light' }} />
+          </Box>
+          <Typography variant="subtitle1" fontWeight={700} color="error.light" sx={{ mt: 0.25 }}>
+            {formatBRL(creditCardExpenses)}
+          </Typography>
+        </Card>
+
+        {/* Indicador Secundário 3: Total de Despesas do Mês */}
+        <Card sx={{ p: 1.5, px: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Total de Gastos
+            </Typography>
+            <TrendingDownIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+          </Box>
+          <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ mt: 0.25 }}>
+            {formatBRL(totalExpense)}
+          </Typography>
+        </Card>
+
+        {/* Indicador Secundário 4: Sobra Real Calculada */}
+        <Card sx={{ p: 1.5, px: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', borderColor: 'divider', width: '100%', boxSizing: 'border-box' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Sobra Real Calculada
+            </Typography>
+            <AccountBalanceWalletIcon sx={{ fontSize: 16, color: 'info.main' }} />
+          </Box>
+          <Typography variant="subtitle1" fontWeight={700} color={netBalance >= 0 ? 'info.light' : 'error.main'} sx={{ mt: 0.25 }}>
+            {formatBRL(netBalance)}
+          </Typography>
+        </Card>
+      </Box>
+
+      {/* 3. GASTOS POR CONTA / CARTÃO (PREENCHENDO 100% DA LARGURA) */}
+      <Card sx={{ width: '100%', p: { xs: 2, sm: 2.5 }, boxSizing: 'border-box' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CreditCardIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+            <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, color: 'text.secondary' }}>
+              Gastos por Conta / Cartão
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {selectedAccountFilter && (
+              <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem', p: 0.25 }}>
+                Limpar filtro
+              </Button>
+            )}
+            {onOpenManageAccounts && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="inherit"
+                onClick={onOpenManageAccounts}
+                startIcon={<EditIcon sx={{ fontSize: 13 }} />}
+                sx={{ fontSize: '0.75rem', py: 0.25, px: 1, borderColor: 'divider' }}
+              >
+                Editar Cartões
+              </Button>
+            )}
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
+          {accounts.map(acc => {
+            const amount = expensesByAccount[acc.name] || 0;
+            const isSelected = selectedAccountFilter === acc.name;
+            return (
+              <ButtonBase
+                key={acc.id}
+                onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
+                sx={{
+                  width: '100%',
+                  px: { xs: 2, sm: 2.5 },
+                  py: 1.25,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  border: '1px solid',
+                  borderColor: isSelected ? 'primary.main' : 'divider',
+                  bgcolor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                  transition: 'all 0.15s ease',
+                  boxSizing: 'border-box',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.04)',
+                    borderColor: 'primary.dark'
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: acc.color || 'primary.main', flexShrink: 0 }} />
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Typography variant="body2" fontWeight={700} color="text.primary">
+                      {acc.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                      {acc.type === 'credit_card' ? 'Fatura Cartão de Crédito' : 'Conta Bancária / Débito'}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="body1" sx={{ fontWeight: 800, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
+                    {formatBRL(amount)}
+                  </Typography>
+                </Box>
+              </ButtonBase>
+            );
+          })}
+        </Box>
+      </Card>
+
+      {/* MODAL / DIALOG PARA DEFINIR META DE SOBRA */}
       <Dialog open={isEditingSurplus} onClose={() => setIsEditingSurplus(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="subtitle1" fontWeight={700}>Ajustar Sobra Prevista</Typography>
+          <Typography variant="subtitle1" fontWeight={700}>Ajustar Meta de Sobra</Typography>
           <IconButton size="small" onClick={() => setIsEditingSurplus(false)}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
         <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            Defina quanto você deseja planejar que sobre no fim do mês. O app calculará automaticamente seu limite disponível para compras no cartão.
+            Defina quanto você planeja que sobre no fim do mês. O app recalcula automaticamente o seu limite disponível para compras no cartão.
           </Typography>
           <TextField
-            label="Valor da Sobra Desejada (R$)"
+            label="Meta de Sobra Desejada (R$)"
             fullWidth
             type="number"
             size="small"
@@ -344,83 +514,6 @@ export function SummaryCards({
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Cartões / Faturas do Mês com filtro interativo */}
-      <Card sx={{ width: '100%', p: { xs: 1.5, sm: 2 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <CreditCardIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-            <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, color: 'text.secondary' }}>
-              Gastos por Conta / Cartão
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {selectedAccountFilter && (
-              <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem', p: 0.25 }}>
-                Limpar filtro
-              </Button>
-            )}
-            {onOpenManageAccounts && (
-              <Button
-                size="small"
-                variant="outlined"
-                color="inherit"
-                onClick={onOpenManageAccounts}
-                startIcon={<EditIcon sx={{ fontSize: 13 }} />}
-                sx={{ fontSize: '0.75rem', py: 0.25, px: 1, borderColor: 'divider' }}
-              >
-                Editar Cartões
-              </Button>
-            )}
-          </Box>
-        </Box>
-
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' },
-            gap: 1,
-            width: '100%'
-          }}
-        >
-          {accounts.map(acc => {
-            const amount = expensesByAccount[acc.name] || 0;
-            const isSelected = selectedAccountFilter === acc.name;
-            return (
-              <ButtonBase
-                key={acc.id}
-                onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
-                sx={{
-                  width: '100%',
-                  p: { xs: 1.25, sm: 1.5 },
-                  borderRadius: 2.5,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  border: '1px solid',
-                  borderColor: isSelected ? 'primary.main' : 'divider',
-                  bgcolor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    bgcolor: 'rgba(255, 255, 255, 0.05)',
-                    borderColor: 'primary.dark'
-                  }
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: '80%' }}>
-                    {acc.name}
-                  </Typography>
-                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: acc.color || 'primary.main' }} />
-                </Box>
-                <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
-                  {formatBRL(amount)}
-                </Typography>
-              </ButtonBase>
-            );
-          })}
-        </Box>
-      </Card>
     </Box>
   );
 }
