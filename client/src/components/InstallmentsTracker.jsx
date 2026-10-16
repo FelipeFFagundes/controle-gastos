@@ -1,5 +1,18 @@
 import React from 'react';
-import { Layers, Calendar, CheckCircle2, AlertCircle, CreditCard } from 'lucide-react';
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  LinearProgress,
+  Chip,
+  Divider,
+  Stack
+} from '@mui/material';
+import LayersIcon from '@mui/icons-material/Layers';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 
 export function InstallmentsTracker({ installments = [], currentMonth = '2026-10' }) {
   const formatBRL = (val) => {
@@ -11,112 +24,161 @@ export function InstallmentsTracker({ installments = [], currentMonth = '2026-10
 
   if (!installments || installments.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-500">
-        <Layers className="w-10 h-10 mx-auto mb-2 text-slate-600" />
-        <p className="text-sm font-medium">Nenhum parcelamento ativo encontrado.</p>
-        <p className="text-xs text-slate-600 mt-1">Ao registrar compras parceladas (ex: 1/10), elas aparecerão aqui automaticamente.</p>
-      </div>
+      <Card sx={{ p: 6, textAlign: 'center' }}>
+        <LayersIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1, opacity: 0.5 }} />
+        <Typography variant="body1" fontWeight={600} color="text.secondary">
+          Nenhum parcelamento ativo encontrado.
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Ao registrar compras com parcelas (ex: 1/10), elas aparecerão aqui automaticamente.
+        </Typography>
+      </Card>
     );
   }
 
-  // Estatísticas gerais de parcelamentos
   const totalInstallmentsDebt = installments.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0);
   const totalMonthlyCommitment = installments.reduce((acc, curr) => acc + (curr.amountPerInstallment || 0), 0);
 
   return (
-    <div className="space-y-4">
-      {/* Resumo dos Parcelamentos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-          <div>
-            <span className="text-xs text-slate-400 font-medium">Impacto Mensal dos Parcelamentos</span>
-            <div className="text-xl font-bold text-amber-400 mt-1">
-              {formatBRL(totalMonthlyCommitment)}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Soma das parcelas que caem este mês</p>
-          </div>
-          <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
-            <Calendar className="w-6 h-6" />
-          </div>
-        </div>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {/* Resumo Geral de Parcelas */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6}>
+          <Card sx={{ borderColor: 'rgba(245, 158, 11, 0.2)' }}>
+            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Impacto Mensal dos Parcelamentos
+                  </Typography>
+                  <Typography variant="h5" color="warning.main" sx={{ mt: 1, fontWeight: 700 }}>
+                    {formatBRL(totalMonthlyCommitment)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Total das parcelas devidas neste mês
+                  </Typography>
+                </div>
+                <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: 'rgba(245, 158, 11, 0.1)', color: 'warning.main' }}>
+                  <CalendarMonthIcon />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-          <div>
-            <span className="text-xs text-slate-400 font-medium">Valor Total Contratado em Parcelas</span>
-            <div className="text-xl font-bold text-indigo-400 mt-1">
-              {formatBRL(totalInstallmentsDebt)}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">{installments.length} compras parceladas ativas</p>
-          </div>
-          <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
-            <Layers className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
+        <Grid item xs={12} sm={6}>
+          <Card sx={{ borderColor: 'rgba(99, 102, 241, 0.2)' }}>
+            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Valor Total Contratado em Parcelas
+                  </Typography>
+                  <Typography variant="h5" color="info.light" sx={{ mt: 1, fontWeight: 700 }}>
+                    {formatBRL(totalInstallmentsDebt)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {installments.length} compras parceladas ativas
+                  </Typography>
+                </div>
+                <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: 'rgba(99, 102, 241, 0.1)', color: 'info.main' }}>
+                  <LayersIcon />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      {/* Cards de Cada Parcela */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+      {/* Cards de Cada Parcela Ativa */}
+      <Grid container spacing={2}>
         {installments.map((item, idx) => {
           const current = item.currentInstallment || 1;
           const total = item.totalInstallments || 1;
           const percentage = Math.min(100, Math.round((current / total) * 100));
           const remaining = Math.max(0, total - current);
-          const paidSoFar = item.amountPerInstallment * current;
           const remainingDebt = item.amountPerInstallment * remaining;
 
           return (
-            <div 
-              key={idx} 
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-4.5 hover:border-slate-700 transition-all flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h4 className="font-semibold text-white text-sm">{item.description}</h4>
-                    <span className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <CreditCard className="w-3.5 h-3.5 text-slate-500" />
-                      {item.account} • {item.category}
-                    </span>
-                  </div>
-                  <span className="px-2 py-1 rounded-lg text-xs font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 whitespace-nowrap">
-                    Parcela {current} de {total}
-                  </span>
-                </div>
+            <Grid item xs={12} md={6} key={idx}>
+              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                    <div>
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        {item.description}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                        <CreditCardIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary">
+                          {item.account} • {item.category}
+                        </Typography>
+                      </Box>
+                    </div>
 
-                {/* Barra de Progresso */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
-                    <span>Progresso de Pagamento</span>
-                    <span className="font-semibold text-white">{percentage}%</span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-indigo-500 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
+                    <Chip
+                      label={`Parcela ${current} de ${total}`}
+                      size="small"
+                      color="info"
+                      sx={{ fontWeight: 700 }}
                     />
-                  </div>
-                </div>
-              </div>
+                  </Box>
 
-              {/* Detalhes Financeiros */}
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Valor da Parcela</span>
-                  <span className="font-semibold text-white">{formatBRL(item.amountPerInstallment)}</span>
-                </div>
-                <div className="text-center">
-                  <span className="text-slate-500 block text-[11px]">Restam</span>
-                  <span className="font-semibold text-amber-400">{remaining} {remaining === 1 ? 'mês' : 'meses'}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block text-[11px]">Saldo Devedor</span>
-                  <span className="font-semibold text-slate-300">{formatBRL(remainingDebt)}</span>
-                </div>
-              </div>
-            </div>
+                  {/* Barra de Progresso */}
+                  <Box sx={{ mt: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Progresso de Quitação
+                      </Typography>
+                      <Typography variant="caption" fontWeight={700}>
+                        {percentage}%
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={percentage}
+                      color="info"
+                      sx={{ height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
+                    />
+                  </Box>
+
+                  <Divider sx={{ my: 2 }} />
+
+                  {/* Valores Detalhados */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Valor da Parcela
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700}>
+                        {formatBRL(item.amountPerInstallment)}
+                      </Typography>
+                    </div>
+
+                    <div style={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Restam
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} color="warning.main">
+                        {remaining} {remaining === 1 ? 'mês' : 'meses'}
+                      </Typography>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Saldo Devedor
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} color="text.secondary">
+                        {formatBRL(remainingDebt)}
+                      </Typography>
+                    </div>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           );
         })}
-      </div>
-    </div>
+      </Grid>
+    </Box>
   );
 }

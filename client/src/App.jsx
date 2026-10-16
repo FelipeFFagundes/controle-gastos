@@ -1,16 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Wallet, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
-  RotateCcw, 
-  Layers, 
-  LayoutDashboard,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw
-} from 'lucide-react';
+import {
+  ThemeProvider,
+  CssBaseline,
+  Box,
+  Container,
+  AppBar,
+  Toolbar,
+  Typography,
+  IconButton,
+  Button,
+  Tabs,
+  Tab,
+  Select,
+  MenuItem,
+  FormControl,
+  Snackbar,
+  Alert,
+  BottomNavigation,
+  BottomNavigationAction,
+  Paper,
+  Fab,
+  Grid,
+  useMediaQuery,
+  Chip
+} from '@mui/material';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import AddIcon from '@mui/icons-material/Add';
+import SyncIcon from '@mui/icons-material/Sync';
+import RestoreIcon from '@mui/icons-material/Restore';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import LayersIcon from '@mui/icons-material/Layers';
+import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
+
+import { theme } from './theme';
 import { SummaryCards } from './components/SummaryCards';
 import { TransactionList } from './components/TransactionList';
 import { TransactionModal } from './components/TransactionModal';
@@ -19,6 +43,8 @@ import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { PluggySyncModal } from './components/PluggySyncModal';
 
 export default function App() {
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [currentMonth, setCurrentMonth] = useState('2026-10');
   const [availableMonths, setAvailableMonths] = useState(['2026-10']);
   const [data, setData] = useState({
@@ -29,23 +55,26 @@ export default function App() {
   });
   const [installments, setInstallments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'installments'
+  const [activeTab, setActiveTab] = useState(0); // 0: dashboard, 1: installments
   const [selectedAccountFilter, setSelectedAccountFilter] = useState('');
-  
-  // Modal states
+
+  // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPluggyModalOpen, setIsPluggyModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
-  // Toast / Mensagens de feedback
-  const [feedback, setFeedback] = useState(null);
+  // Snackbar / Feedback
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  const showToast = (message, type = 'success') => {
-    setFeedback({ message, type });
-    setTimeout(() => setFeedback(null), 3500);
+  const showToast = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
   };
 
-  // Carrega lista de meses
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
+  // Carrega meses
   const fetchMonths = async () => {
     try {
       const res = await fetch('/api/months');
@@ -58,7 +87,7 @@ export default function App() {
     }
   };
 
-  // Carrega dados do mês ativo
+  // Carrega dados do mês
   const fetchData = async (month) => {
     setLoading(true);
     try {
@@ -100,7 +129,6 @@ export default function App() {
     fetchData(newMonth);
   };
 
-  // Formata o nome do mês (ex: Outubro de 2026)
   const formatMonthTitle = (monthStr) => {
     const [year, month] = monthStr.split('-').map(Number);
     const date = new Date(year, month - 1, 1);
@@ -108,7 +136,7 @@ export default function App() {
     return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`;
   };
 
-  // Salvar nova transação ou edição
+  // Salvar transação
   const handleSaveTransaction = async (formData) => {
     try {
       if (editingTransaction) {
@@ -118,7 +146,7 @@ export default function App() {
           body: JSON.stringify(formData)
         });
         if (!res.ok) throw new Error('Falha ao atualizar');
-        showToast('Lançamento atualizado com sucesso!');
+        showToast('Lançamento atualizado!');
       } else {
         const res = await fetch('/api/transactions', {
           method: 'POST',
@@ -126,7 +154,7 @@ export default function App() {
           body: JSON.stringify(formData)
         });
         if (!res.ok) throw new Error('Falha ao criar');
-        showToast('Nova compra/gasto registrado com sucesso!');
+        showToast('Nova compra registrada!');
       }
 
       setIsModalOpen(false);
@@ -167,9 +195,7 @@ export default function App() {
 
   // Restaurar dados originais da planilha
   const handleResetSeed = async () => {
-    if (!window.confirm('Atenção: isso restaurará os dados originais da sua planilha de Outubro 2026. Deseja continuar?')) {
-      return;
-    }
+    if (!window.confirm('Restaurar os dados originais da planilha de Outubro 2026?')) return;
     try {
       const res = await fetch('/api/reset-seed', { method: 'POST' });
       if (!res.ok) throw new Error('Falha ao resetar');
@@ -184,164 +210,158 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      {/* Toast de Feedback */}
-      {feedback && (
-        <div className="fixed bottom-5 right-5 z-50 animate-bounce">
-          <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-2xl border text-xs font-medium ${
-            feedback.type === 'error' 
-              ? 'bg-rose-950/90 text-rose-200 border-rose-800' 
-              : 'bg-emerald-950/90 text-emerald-200 border-emerald-800'
-          }`}>
-            {feedback.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            )}
-            <span>{feedback.message}</span>
-          </div>
-        </div>
-      )}
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
 
-      {/* Header Superior */}
-      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      {/* Snackbar de Notificações */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3500}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 3 }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Barra de Navegação Superior (AppBar) */}
+      <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Toolbar sx={{ justifyContent: 'space-between', gap: 1, px: { xs: 1.5, sm: 3 } }}>
           {/* Logo e Título */}
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30">
-              <Wallet className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ p: 1, borderRadius: 2.5, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex' }}>
+              <AccountBalanceWalletIcon fontSize="small" />
+            </Box>
+            <Box>
+              <Typography variant="subtitle1" fontWeight={700} lineHeight={1.2} noWrap>
                 Controle de Gastos
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-normal border border-slate-700">
-                  v1.0
-                </span>
-              </h1>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                Gerencie compras, faturas e parcelamentos do mês
-              </p>
-            </div>
-          </div>
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                Finanças Mensais
+              </Typography>
+            </Box>
+          </Box>
 
-          {/* Navegação de Mês */}
-          <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl p-1">
-            <button
-              onClick={() => changeMonth(-1)}
-              title="Mês Anterior"
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+          {/* Seletor de Mês */}
+          <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: 2.5, p: 0.5, border: '1px solid', borderColor: 'divider' }}>
+            <IconButton size="small" onClick={() => changeMonth(-1)}>
+              <ChevronLeftIcon fontSize="small" />
+            </IconButton>
 
-            <select
-              value={currentMonth}
-              onChange={(e) => handleSelectMonth(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-white px-2 py-1 focus:outline-none cursor-pointer"
-            >
-              {availableMonths.map(m => (
-                <option key={m} value={m} className="bg-slate-900 text-white">
-                  {formatMonthTitle(m)}
-                </option>
-              ))}
-            </select>
+            <FormControl size="small" variant="standard" sx={{ minWidth: { xs: 120, sm: 160 } }}>
+              <Select
+                value={currentMonth}
+                onChange={(e) => handleSelectMonth(e.target.value)}
+                disableUnderline
+                sx={{
+                  fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  '& .MuiSelect-select': { py: 0.5, px: 1 }
+                }}
+              >
+                {availableMonths.map(m => (
+                  <MenuItem key={m} value={m}>
+                    {formatMonthTitle(m)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-            <button
-              onClick={() => changeMonth(1)}
-              title="Próximo Mês"
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+            <IconButton size="small" onClick={() => changeMonth(1)}>
+              <ChevronRightIcon fontSize="small" />
+            </IconButton>
+          </Box>
 
-          {/* Botões de Ação */}
-          <div className="flex items-center gap-2">
-            <button
+          {/* Ações no Desktop */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              color="inherit"
+              startIcon={<RestoreIcon />}
               onClick={handleResetSeed}
-              title="Restaurar dados originais da planilha"
-              className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl border border-slate-800 transition-colors hidden md:flex items-center gap-1.5 text-xs"
+              sx={{ borderColor: 'divider' }}
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Restaurar Planilha</span>
-            </button>
+              Restaurar
+            </Button>
 
-            <button
+            <Button
+              size="small"
+              variant="outlined"
+              color="secondary"
+              startIcon={<SyncIcon />}
               onClick={() => setIsPluggyModalOpen(true)}
-              title="Sincronizar com Open Finance (Pluggy)"
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl transition-all"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Sincronizar Bancos</span>
-            </button>
+              Sincronizar Bancos
+            </Button>
 
-            <button
+            <Button
+              size="small"
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
               onClick={() => {
                 setEditingTransaction(null);
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/25 transition-all"
             >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Nova Compra</span>
-            </button>
-          </div>
-        </div>
-      </header>
+              Nova Compra
+            </Button>
+          </Box>
+        </Toolbar>
+      </AppBar>
 
-      {/* Conteúdo Principal */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 space-y-6 w-full">
-        {/* Seletor de Abas */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all ${
-                activeTab === 'dashboard'
-                  ? 'bg-blue-600/15 text-blue-400 border border-blue-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Visão do Mês ({formatMonthTitle(currentMonth)})</span>
-            </button>
+      {/* Conteúdo Central */}
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, pb: { xs: 11, md: 4 } }}>
+        {/* Abas Superiores no Desktop */}
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(e, val) => setActiveTab(val)}
+            textColor="primary"
+            indicatorColor="primary"
+          >
+            <Tab
+              icon={<DashboardIcon fontSize="small" />}
+              iconPosition="start"
+              label={`Visão do Mês (${formatMonthTitle(currentMonth)})`}
+              sx={{ minHeight: 48, fontWeight: 600 }}
+            />
+            <Tab
+              icon={<LayersIcon fontSize="small" />}
+              iconPosition="start"
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <span>Parcelamentos Ativos</span>
+                  <Chip label={installments.length} size="small" color="info" sx={{ height: 20, fontWeight: 700 }} />
+                </Box>
+              }
+              sx={{ minHeight: 48, fontWeight: 600 }}
+            />
+          </Tabs>
 
-            <button
-              onClick={() => setActiveTab('installments')}
-              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all ${
-                activeTab === 'installments'
-                  ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>Parcelamentos Ativos</span>
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300 font-bold">
-                {installments.length}
-              </span>
-            </button>
-          </div>
+          <Typography variant="caption" color="text.secondary">
+            {data.transactions?.length || 0} lançamentos
+          </Typography>
+        </Box>
 
-          <span className="text-xs text-slate-500 hidden sm:block">
-            {data.transactions?.length || 0} lançamentos registrados
-          </span>
-        </div>
-
-        {/* Visualização de Abas */}
-        {activeTab === 'dashboard' ? (
-          <div className="space-y-6">
-            {/* Cards de Resumo Financeiro */}
-            <SummaryCards 
-              summary={data.summary} 
+        {/* Exibição da Aba Atual */}
+        {activeTab === 0 ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Cards de Resumo */}
+            <SummaryCards
+              summary={data.summary}
               accounts={data.accounts}
               selectedAccountFilter={selectedAccountFilter}
               onSelectAccountFilter={setSelectedAccountFilter}
             />
 
-            {/* Grid Principal: Lista de Transações + Distribuição por Categoria */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className="lg:col-span-2">
-                <TransactionList 
+            {/* Listagem de Transações e Barra Lateral */}
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={8}>
+                <TransactionList
                   transactions={data.transactions || []}
                   accounts={data.accounts || []}
                   categories={data.categories || []}
@@ -354,41 +374,119 @@ export default function App() {
                   }}
                   onDelete={handleDeleteTransaction}
                 />
-              </div>
+              </Grid>
 
-              {/* Barra Lateral: Categorias */}
-              <div className="space-y-4">
-                <CategoryBreakdown 
-                  expensesByCategory={data.summary?.expensesByCategory || {}}
-                  categories={data.categories || []}
-                  totalExpense={data.summary?.totalExpense || 0}
-                />
+              {/* Barra Lateral */}
+              <Grid item xs={12} md={4}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                  <CategoryBreakdown
+                    expensesByCategory={data.summary?.expensesByCategory || {}}
+                    categories={data.categories || []}
+                    totalExpense={data.summary?.totalExpense || 0}
+                  />
 
-                {/* Card de Dica Rápida */}
-                <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
-                  <h4 className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    💡 Dicas de Uso
-                  </h4>
-                  <ul className="space-y-1.5 list-disc list-inside text-slate-400 text-[11px]">
-                    <li>Clique no ícone de relógio na tabela para marcar um gasto como <strong>Pago</strong>.</li>
-                    <li>Ao registrar compras parceladas (ex: 6x), o sistema pode gerar automaticamente as parcelas dos próximos meses.</li>
-                    <li>Clique em qualquer cartão no topo para filtrar a tabela apenas por ele.</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
+                  {/* Card de Dicas */}
+                  <Paper sx={{ p: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', border: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <LightbulbOutlinedIcon color="primary" fontSize="small" />
+                      <Typography variant="subtitle2" fontWeight={600}>
+                        Dica Rápida
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" paragraph sx={{ mb: 0.5 }}>
+                      • No celular, clique no círculo para marcar uma despesa como <strong>Paga</strong>.
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      • Compras parceladas geram automaticamente as próximas parcelas nos meses seguintes.
+                    </Typography>
+                  </Paper>
+                </Box>
+              </Grid>
+            </Grid>
+          </Box>
         ) : (
-          /* Aba de Parcelamentos */
-          <InstallmentsTracker 
-            installments={installments} 
-            currentMonth={currentMonth} 
-          />
+          <InstallmentsTracker installments={installments} currentMonth={currentMonth} />
         )}
-      </main>
+      </Container>
 
-      {/* Modal de Criação / Edição */}
-      <TransactionModal 
+      {/* Botão Flutuante (FAB) para Mobile */}
+      <Box sx={{ display: { xs: 'block', md: 'none' }, position: 'fixed', bottom: 72, right: 16, zIndex: 30 }}>
+        <Fab
+          color="primary"
+          aria-label="adicionar"
+          onClick={() => {
+            setEditingTransaction(null);
+            setIsModalOpen(true);
+          }}
+          sx={{ boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)' }}
+        >
+          <AddIcon />
+        </Fab>
+      </Box>
+
+      {/* Barra de Navegação Inferior (BottomNavigation) para Celular */}
+      <Paper
+        sx={{
+          display: { xs: 'block', sm: 'none' },
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 40,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper'
+        }}
+        elevation={6}
+      >
+        <BottomNavigation
+          showLabels
+          value={activeTab}
+          onChange={(e, val) => {
+            if (val === 2) {
+              setIsPluggyModalOpen(true);
+            } else {
+              setActiveTab(val);
+            }
+          }}
+          sx={{ bgcolor: 'transparent', height: 60 }}
+        >
+          <BottomNavigationAction label="Visão Geral" icon={<DashboardIcon />} />
+          <BottomNavigationAction
+            label="Parcelas"
+            icon={
+              <Box sx={{ position: 'relative' }}>
+                <LayersIcon />
+                {installments.length > 0 && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -8,
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      bgcolor: 'info.main',
+                      color: 'white',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {installments.length}
+                  </Box>
+                )}
+              </Box>
+            }
+          />
+          <BottomNavigationAction label="Bancos" icon={<SyncIcon />} />
+        </BottomNavigation>
+      </Paper>
+
+      {/* Modais */}
+      <TransactionModal
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
@@ -400,7 +498,7 @@ export default function App() {
         currentMonth={currentMonth}
         editTransaction={editingTransaction}
       />
-      {/* Modal de Sincronização Pluggy (Open Finance) */}
+
       <PluggySyncModal
         isOpen={isPluggyModalOpen}
         onClose={() => setIsPluggyModalOpen(false)}
@@ -411,6 +509,6 @@ export default function App() {
           fetchData(currentMonth);
         }}
       />
-    </div>
+    </ThemeProvider>
   );
 }

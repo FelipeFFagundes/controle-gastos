@@ -1,14 +1,23 @@
 import React from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
-  Clock, 
-  CheckCircle2, 
-  CreditCard 
-} from 'lucide-react';
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  LinearProgress,
+  Chip,
+  ButtonBase,
+  Button
+} from '@mui/material';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
-export function SummaryCards({ summary, accounts, selectedAccountFilter, onSelectAccountFilter }) {
+export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '', onSelectAccountFilter }) {
   if (!summary) return null;
 
   const {
@@ -30,139 +39,165 @@ export function SummaryCards({ summary, accounts, selectedAccountFilter, onSelec
   const paidPercentage = totalExpense > 0 ? Math.round((totalPaid / totalExpense) * 100) : 0;
 
   return (
-    <div className="space-y-4">
-      {/* Cards Principais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Cards Principais de Totais */}
+      <Grid container spacing={2}>
         {/* Receitas */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm hover:border-emerald-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-400">Receitas do Mês</span>
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl font-bold text-emerald-400">
-              {formatBRL(totalIncome)}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">Salário, extras e rendimentos</p>
-        </div>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ height: '100%', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                  Receitas do Mês
+                </Typography>
+                <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.1)', color: 'secondary.main', display: 'flex' }}>
+                  <TrendingUpIcon fontSize="small" />
+                </Box>
+              </Box>
+              <Typography variant="h5" color="secondary.main" sx={{ mt: 1.5, fontWeight: 700 }}>
+                {formatBRL(totalIncome)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Salário e entradas registradas
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        {/* Despesas Totais */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm hover:border-rose-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-400">Total de Despesas</span>
-            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400">
-              <TrendingDown className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-2xl font-bold text-rose-400">
-              {formatBRL(totalExpense)}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">Faturas, compras e fixas</p>
-        </div>
+        {/* Despesas */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ height: '100%', borderColor: 'rgba(244, 63, 94, 0.2)' }}>
+            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                  Total de Despesas
+                </Typography>
+                <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.1)', color: 'error.main', display: 'flex' }}>
+                  <TrendingDownIcon fontSize="small" />
+                </Box>
+              </Box>
+              <Typography variant="h5" color="error.main" sx={{ mt: 1.5, fontWeight: 700 }}>
+                {formatBRL(totalExpense)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Faturas, compras e fixas
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
         {/* Saldo Líquido */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm hover:border-blue-500/30 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-400">Saldo Líquido</span>
-            <div className={`p-2.5 rounded-xl ${netBalance >= 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-amber-500/10 text-amber-400'}`}>
-              <Wallet className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className={`text-2xl font-bold ${netBalance >= 0 ? 'text-blue-400' : 'text-amber-400'}`}>
-              {formatBRL(netBalance)}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {netBalance >= 0 ? 'Resultado superavitário' : 'Gastos superam receitas'}
-          </p>
-        </div>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ height: '100%', borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)' }}>
+            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                  Saldo Líquido
+                </Typography>
+                <Box sx={{ p: 1, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: netBalance >= 0 ? 'primary.main' : 'warning.main', display: 'flex' }}>
+                  <AccountBalanceWalletIcon fontSize="small" />
+                </Box>
+              </Box>
+              <Typography variant="h5" color={netBalance >= 0 ? 'primary.light' : 'warning.main'} sx={{ mt: 1.5, fontWeight: 700 }}>
+                {formatBRL(netBalance)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {netBalance >= 0 ? 'Saldo positivo no mês' : 'Despesas superam receitas'}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        {/* Pagos vs Pendentes */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm hover:border-slate-700 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-400">Status dos Pagamentos</span>
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between">
-            <div className="text-xs text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Pago: {formatBRL(totalPaid)}</span>
-            </div>
-            <div className="text-xs text-amber-400">
-              Pendente: {formatBRL(totalPending)}
-            </div>
-          </div>
-          {/* Barra de progresso */}
-          <div className="w-full bg-slate-800 h-2 rounded-full mt-3 overflow-hidden">
-            <div 
-              className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-              style={{ width: `${paidPercentage}%` }}
-            />
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1.5 text-right">{paidPercentage}% liquidado</p>
-        </div>
-      </div>
+        {/* Status Pago vs Pendente */}
+        <Grid item xs={12} sm={6} md={3}>
+          <Card sx={{ height: '100%' }}>
+            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                  Status de Pagamento
+                </Typography>
+                <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(99, 102, 241, 0.1)', color: 'info.main', display: 'flex' }}>
+                  <ScheduleIcon fontSize="small" />
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, alignItems: 'center' }}>
+                <Typography variant="caption" color="secondary.light" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600 }}>
+                  <CheckCircleIcon sx={{ fontSize: 14 }} /> Pago: {formatBRL(totalPaid)}
+                </Typography>
+                <Typography variant="caption" color="warning.light" fontWeight={600}>
+                  Pendente: {formatBRL(totalPending)}
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={paidPercentage}
+                color="secondary"
+                sx={{ mt: 1.5, height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5 }}>
+                {paidPercentage}% quitado
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      {/* Cartões / Faturas do Mês */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-slate-400" />
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+      {/* Cartões / Faturas do Mês com filtro interativo */}
+      <Card sx={{ p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CreditCardIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+            <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, color: 'text.secondary' }}>
               Gastos por Conta / Cartão
-            </h3>
-          </div>
+            </Typography>
+          </Box>
           {selectedAccountFilter && (
-            <button
-              onClick={() => onSelectAccountFilter('')}
-              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-            >
+            <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem' }}>
               Limpar filtro
-            </button>
+            </Button>
           )}
-        </div>
+        </Box>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <Grid container spacing={1.5}>
           {accounts.map(acc => {
             const amount = expensesByAccount[acc.name] || 0;
             const isSelected = selectedAccountFilter === acc.name;
             return (
-              <button
-                key={acc.id}
-                onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
-                className={`text-left p-3 rounded-xl border transition-all ${
-                  isSelected 
-                    ? 'bg-blue-600/15 border-blue-500 shadow-sm' 
-                    : 'bg-slate-800/60 border-slate-750 hover:bg-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-300 truncate max-w-[100px]">
-                    {acc.name}
-                  </span>
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: acc.color }} 
-                  />
-                </div>
-                <div className="mt-1.5">
-                  <span className="text-sm font-semibold text-white">
+              <Grid item xs={6} sm={4} md={2} key={acc.id}>
+                <ButtonBase
+                  onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
+                  sx={{
+                    width: '100%',
+                    p: 1.5,
+                    borderRadius: 3,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    border: '1px solid',
+                    borderColor: isSelected ? 'primary.main' : 'divider',
+                    bgcolor: isSelected ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.05)',
+                      borderColor: 'primary.dark'
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: '80%' }}>
+                      {acc.name}
+                    </Typography>
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: acc.color || 'primary.main' }} />
+                  </Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.75, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
                     {formatBRL(amount)}
-                  </span>
-                </div>
-              </button>
+                  </Typography>
+                </ButtonBase>
+              </Grid>
             );
           })}
-        </div>
-      </div>
-    </div>
+        </Grid>
+      </Card>
+    </Box>
   );
 }

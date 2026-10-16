@@ -1,14 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Save, Layers, Calendar, CreditCard, Tag, DollarSign } from 'lucide-react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  Box,
+  Grid,
+  Typography,
+  InputAdornment,
+  ButtonGroup,
+  IconButton
+} from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import EditIcon from '@mui/icons-material/Edit';
 
-export function TransactionModal({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  categories = [], 
-  accounts = [], 
+export function TransactionModal({
+  isOpen,
+  onClose,
+  onSave,
+  categories = [],
+  accounts = [],
   currentMonth = '2026-10',
-  editTransaction = null 
+  editTransaction = null
 }) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -42,7 +64,6 @@ export function TransactionModal({
         setTotalInstallments(2);
       }
     } else {
-      // Novo lançamento
       setDescription('');
       setAmount('');
       setType('expense');
@@ -84,233 +105,212 @@ export function TransactionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
-        {/* Header do Modal */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
-              {editTransaction ? <Save className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-            </div>
-            <h2 className="text-lg font-bold text-white">
-              {editTransaction ? 'Editar Lançamento' : 'Nova Compra / Lançamento'}
-            </h2>
-          </div>
-          <button 
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {editTransaction ? <EditIcon color="primary" /> : <AddCircleIcon color="primary" />}
+          <Typography variant="h6" fontWeight={700}>
+            {editTransaction ? 'Editar Lançamento' : 'Nova Compra / Lançamento'}
+          </Typography>
+        </Box>
+        <IconButton onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
 
-        {/* Formulário */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Tipo: Despesa vs Receita */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
-            <button
-              type="button"
+      <form onSubmit={handleSubmit}>
+        <DialogContent dividers sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          {/* Seletor Tipo: Despesa vs Receita */}
+          <ButtonGroup fullWidth variant="outlined" size="small">
+            <Button
+              variant={type === 'expense' ? 'contained' : 'outlined'}
+              color="error"
               onClick={() => setType('expense')}
-              className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all ${
-                type === 'expense' 
-                  ? 'bg-rose-500 text-white shadow-sm' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              sx={{ fontWeight: 600 }}
             >
               Despesa (Gasto)
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant={type === 'income' ? 'contained' : 'outlined'}
+              color="secondary"
               onClick={() => setType('income')}
-              className={`py-2 px-3 text-xs font-semibold rounded-lg transition-all ${
-                type === 'income' 
-                  ? 'bg-emerald-500 text-white shadow-sm' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              sx={{ fontWeight: 600 }}
             >
               Receita (Entrada)
-            </button>
-          </div>
+            </Button>
+          </ButtonGroup>
 
-          {/* Descrição & Valor */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-xs font-medium text-slate-300">Descrição</label>
-              <input
-                type="text"
+          {/* Descrição e Valor */}
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={8}>
+              <TextField
+                label="Descrição da Compra"
+                fullWidth
+                size="small"
+                required
                 placeholder="Ex.: Discos, Supermercado, Farm"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                required
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
               />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-300">Valor (R$)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-xs text-slate-500">R$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0,00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  required
-                  className="w-full pl-8 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-all"
-                />
-              </div>
-            </div>
-          </div>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Valor (R$)"
+                fullWidth
+                size="small"
+                required
+                type="number"
+                inputProps={{ step: '0.01', min: '0.01' }}
+                placeholder="0,00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">R$</InputAdornment>
+                }}
+              />
+            </Grid>
+          </Grid>
 
-          {/* Conta/Cartão & Categoria */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-                Conta / Cartão
-              </label>
-              <select
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-all"
-              >
-                {accounts.map(acc => (
-                  <option key={acc.id} value={acc.name}>{acc.name}</option>
-                ))}
-              </select>
-            </div>
+          {/* Conta/Cartão e Categoria */}
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Conta / Cartão</InputLabel>
+                <Select
+                  value={account}
+                  label="Conta / Cartão"
+                  onChange={(e) => setAccount(e.target.value)}
+                >
+                  {accounts.map(acc => (
+                    <MenuItem key={acc.id} value={acc.name}>
+                      {acc.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-slate-400" />
-                Categoria
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-all"
-              >
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Categoria</InputLabel>
+                <Select
+                  value={category}
+                  label="Categoria"
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {categories.map(cat => (
+                    <MenuItem key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
 
           {/* Data */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              Data
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-all"
-            />
-          </div>
+          <TextField
+            label="Data"
+            type="date"
+            fullWidth
+            size="small"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
 
-          {/* Seção de Parcelamento */}
+          {/* Parcelamento */}
           {type === 'expense' && (
-            <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+            <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', border: '1px solid', borderColor: 'divider' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
                     checked={isInstallment}
                     onChange={(e) => setIsInstallment(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-500 focus:ring-blue-500 bg-slate-900 border-slate-700"
+                    color="primary"
                   />
-                  <span>Compra Parcelada (ex: 1/6)</span>
-                </label>
-                {isInstallment && (
-                  <span className="text-[11px] text-blue-400 font-medium">
-                    Parcela {currentInstallment} de {totalInstallments}
-                  </span>
-                )}
-              </div>
+                }
+                label={
+                  <Typography variant="body2" fontWeight={600}>
+                    Compra Parcelada (ex.: 1/6)
+                  </Typography>
+                }
+              />
 
               {isInstallment && (
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="text-[11px] text-slate-400">Parcela Atual</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max={totalInstallments}
-                      value={currentInstallment}
-                      onChange={(e) => setCurrentInstallment(e.target.value)}
-                      className="w-full mt-1 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-sm text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-400">Total de Parcelas</label>
-                    <input
-                      type="number"
-                      min="2"
-                      max="48"
-                      value={totalInstallments}
-                      onChange={(e) => setTotalInstallments(e.target.value)}
-                      className="w-full mt-1 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-sm text-white"
-                    />
-                  </div>
+                <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <TextField
+                        label="Parcela Atual"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        inputProps={{ min: 1, max: totalInstallments }}
+                        value={currentInstallment}
+                        onChange={(e) => setCurrentInstallment(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        label="Total de Parcelas"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        inputProps={{ min: 2, max: 48 }}
+                        value={totalInstallments}
+                        onChange={(e) => setTotalInstallments(e.target.value)}
+                      />
+                    </Grid>
+                  </Grid>
+
                   {!editTransaction && (
-                    <div className="col-span-2 pt-1">
-                      <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-                        <input
-                          type="checkbox"
+                    <FormControlLabel
+                      control={
+                        <Checkbox
                           checked={generateFutureMonths}
                           onChange={(e) => setGenerateFutureMonths(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded text-blue-500"
+                          size="small"
                         />
-                        <span>Gerar parcelas futuras automaticamente nos próximos meses</span>
-                      </label>
-                    </div>
+                      }
+                      label={
+                        <Typography variant="caption" color="text.secondary">
+                          Gerar automaticamente as parcelas nos meses subsequentes
+                        </Typography>
+                      }
+                    />
                   )}
-                </div>
+                </Box>
               )}
-            </div>
+            </Box>
           )}
 
-          {/* Status: Já pago? */}
-          <div className="flex items-center justify-between py-1">
-            <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
+          {/* Status Já Pago? */}
+          <FormControlLabel
+            control={
+              <Checkbox
                 checked={paid}
                 onChange={(e) => setPaid(e.target.checked)}
-                className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700"
+                color="secondary"
               />
-              <span className="font-medium">Já está pago / liquidado?</span>
-            </label>
-            <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-              paid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-            }`}>
-              {paid ? 'Pago' : 'Pendente'}
-            </span>
-          </div>
+            }
+            label={
+              <Typography variant="body2" fontWeight={600}>
+                Já está pago / liquidado?
+              </Typography>
+            }
+          />
+        </DialogContent>
 
-          {/* Botões de Ação */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              <span>{editTransaction ? 'Salvar Alterações' : 'Registrar Compra'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <DialogActions sx={{ px: 2.5, py: 2 }}>
+          <Button onClick={onClose} color="inherit">
+            Cancelar
+          </Button>
+          <Button type="submit" variant="contained" color="primary">
+            {editTransaction ? 'Salvar Alterações' : 'Registrar Compra'}
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
   );
 }
