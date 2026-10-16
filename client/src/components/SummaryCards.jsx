@@ -6,9 +6,9 @@ import {
   Typography,
   Box,
   LinearProgress,
-  Chip,
   ButtonBase,
-  Button
+  Button,
+  Stack
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -39,22 +39,28 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
   const paidPercentage = totalExpense > 0 ? Math.round((totalPaid / totalExpense) * 100) : 0;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Cards Principais de Totais */}
-      <Grid container spacing={2}>
-        {/* Receitas */}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, sm: 2 } }}>
+      {/* Cards Principais: No Mobile ficam exatamente um em cima do outro (xs=12) de forma compacta e coesa */}
+      <Grid container spacing={{ xs: 1.25, sm: 2 }}>
+        {/* 1. Receitas */}
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+          <Card 
+            sx={{ 
+              height: '100%', 
+              borderColor: 'rgba(16, 185, 129, 0.25)',
+              bgcolor: 'rgba(16, 185, 129, 0.03)'
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary" fontWeight={500}>
                   Receitas do Mês
                 </Typography>
-                <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.1)', color: 'secondary.main', display: 'flex' }}>
+                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(16, 185, 129, 0.12)', color: 'secondary.main', display: 'flex' }}>
                   <TrendingUpIcon fontSize="small" />
                 </Box>
               </Box>
-              <Typography variant="h5" color="secondary.main" sx={{ mt: 1.5, fontWeight: 700 }}>
+              <Typography variant="h5" color="secondary.main" sx={{ mt: { xs: 1, sm: 1.5 }, fontWeight: 700, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
                 {formatBRL(totalIncome)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -64,19 +70,25 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
           </Card>
         </Grid>
 
-        {/* Despesas */}
+        {/* 2. Despesas */}
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', borderColor: 'rgba(244, 63, 94, 0.2)' }}>
-            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+          <Card 
+            sx={{ 
+              height: '100%', 
+              borderColor: 'rgba(244, 63, 94, 0.25)',
+              bgcolor: 'rgba(244, 63, 94, 0.03)'
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary" fontWeight={500}>
                   Total de Despesas
                 </Typography>
-                <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.1)', color: 'error.main', display: 'flex' }}>
+                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(244, 63, 94, 0.12)', color: 'error.main', display: 'flex' }}>
                   <TrendingDownIcon fontSize="small" />
                 </Box>
               </Box>
-              <Typography variant="h5" color="error.main" sx={{ mt: 1.5, fontWeight: 700 }}>
+              <Typography variant="h5" color="error.main" sx={{ mt: { xs: 1, sm: 1.5 }, fontWeight: 700, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
                 {formatBRL(totalExpense)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -86,19 +98,25 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
           </Card>
         </Grid>
 
-        {/* Saldo Líquido */}
+        {/* 3. Saldo Líquido */}
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%', borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)' }}>
-            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+          <Card 
+            sx={{ 
+              height: '100%', 
+              borderColor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+              bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.03)' : 'rgba(245, 158, 11, 0.03)'
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary" fontWeight={500}>
                   Saldo Líquido
                 </Typography>
-                <Box sx={{ p: 1, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: netBalance >= 0 ? 'primary.main' : 'warning.main', display: 'flex' }}>
+                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: netBalance >= 0 ? 'rgba(59, 130, 246, 0.12)' : 'rgba(245, 158, 11, 0.12)', color: netBalance >= 0 ? 'primary.main' : 'warning.main', display: 'flex' }}>
                   <AccountBalanceWalletIcon fontSize="small" />
                 </Box>
               </Box>
-              <Typography variant="h5" color={netBalance >= 0 ? 'primary.light' : 'warning.main'} sx={{ mt: 1.5, fontWeight: 700 }}>
+              <Typography variant="h5" color={netBalance >= 0 ? 'primary.light' : 'warning.main'} sx={{ mt: { xs: 1, sm: 1.5 }, fontWeight: 700, fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
                 {formatBRL(netBalance)}
               </Typography>
               <Typography variant="caption" color="text.secondary">
@@ -108,21 +126,21 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
           </Card>
         </Grid>
 
-        {/* Status Pago vs Pendente */}
+        {/* 4. Status Pago vs Pendente */}
         <Grid item xs={12} sm={6} md={3}>
           <Card sx={{ height: '100%' }}>
-            <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+            <CardContent sx={{ p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" color="text.secondary" fontWeight={500}>
                   Status de Pagamento
                 </Typography>
-                <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(99, 102, 241, 0.1)', color: 'info.main', display: 'flex' }}>
+                <Box sx={{ p: 0.75, borderRadius: 2, bgcolor: 'rgba(99, 102, 241, 0.12)', color: 'info.main', display: 'flex' }}>
                   <ScheduleIcon fontSize="small" />
                 </Box>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5, alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: { xs: 1, sm: 1.5 }, alignItems: 'center' }}>
                 <Typography variant="caption" color="secondary.light" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600 }}>
-                  <CheckCircleIcon sx={{ fontSize: 14 }} /> Pago: {formatBRL(totalPaid)}
+                  <CheckCircleIcon sx={{ fontSize: 13 }} /> Pago: {formatBRL(totalPaid)}
                 </Typography>
                 <Typography variant="caption" color="warning.light" fontWeight={600}>
                   Pendente: {formatBRL(totalPending)}
@@ -132,7 +150,7 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
                 variant="determinate"
                 value={paidPercentage}
                 color="secondary"
-                sx={{ mt: 1.5, height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
+                sx={{ mt: 1.25, height: 6, borderRadius: 3, bgcolor: 'rgba(255, 255, 255, 0.08)' }}
               />
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', mt: 0.5 }}>
                 {paidPercentage}% quitado
@@ -143,22 +161,22 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
       </Grid>
 
       {/* Cartões / Faturas do Mês com filtro interativo */}
-      <Card sx={{ p: 2 }}>
+      <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CreditCardIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-            <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, color: 'text.secondary' }}>
+            <Typography variant="caption" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700, color: 'text.secondary' }}>
               Gastos por Conta / Cartão
             </Typography>
           </Box>
           {selectedAccountFilter && (
-            <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem' }}>
+            <Button size="small" onClick={() => onSelectAccountFilter('')} sx={{ fontSize: '0.75rem', p: 0.25 }}>
               Limpar filtro
             </Button>
           )}
         </Box>
 
-        <Grid container spacing={1.5}>
+        <Grid container spacing={1}>
           {accounts.map(acc => {
             const amount = expensesByAccount[acc.name] || 0;
             const isSelected = selectedAccountFilter === acc.name;
@@ -168,8 +186,8 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
                   onClick={() => onSelectAccountFilter(isSelected ? '' : acc.name)}
                   sx={{
                     width: '100%',
-                    p: 1.5,
-                    borderRadius: 3,
+                    p: { xs: 1.25, sm: 1.5 },
+                    borderRadius: 2.5,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start',
@@ -187,9 +205,9 @@ export function SummaryCards({ summary, accounts = [], selectedAccountFilter = '
                     <Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: '80%' }}>
                       {acc.name}
                     </Typography>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: acc.color || 'primary.main' }} />
+                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: acc.color || 'primary.main' }} />
                   </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.75, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5, color: amount > 0 ? 'text.primary' : 'text.secondary' }}>
                     {formatBRL(amount)}
                   </Typography>
                 </ButtonBase>

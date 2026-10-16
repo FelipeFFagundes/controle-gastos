@@ -314,7 +314,7 @@ export default function App() {
       </AppBar>
 
       {/* Conteúdo Central */}
-      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 3 }, pb: { xs: 11, md: 4 } }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 1.5, sm: 3 }, pb: { xs: 11, md: 4 }, px: { xs: 1.5, sm: 3 } }}>
         {/* Abas Superiores no Desktop */}
         <Box sx={{ display: { xs: 'none', sm: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Tabs
@@ -349,7 +349,7 @@ export default function App() {
 
         {/* Exibição da Aba Atual */}
         {activeTab === 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, sm: 3 } }}>
             {/* Cards de Resumo */}
             <SummaryCards
               summary={data.summary}
