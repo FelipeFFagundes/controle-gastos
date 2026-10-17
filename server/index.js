@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { initialData } from './seed.js';
 import { getDb, saveDb } from './db.js';
@@ -20,6 +21,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist');
 
+// Carrega variáveis do arquivo .env se existir localmente
+const ENV_PATH = path.join(__dirname, '..', '.env');
+if (fs.existsSync(ENV_PATH) && process.loadEnvFile) {
+  try {
+    process.loadEnvFile(ENV_PATH);
+  } catch (e) {
+    console.warn('Aviso: Falha ao carregar .env:', e.message);
+  }
+}
+
 export const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -36,6 +47,59 @@ app.use((req, res, next) => {
   next();
 });
 
+// Helper de Autenticação por PIN
+function getAppPin() {
+  return (process.env.APP_PIN || '').trim();
+}
+
+function generateAuthToken(pin) {
+  // Token seguro assinado com HMAC SHA256 e timestamp
+  const timestamp = Date.now();
+  const secret = pin || 'default-pin-secret';
+  const hmac = crypto.createHmac('sha256', secret).update(String(timestamp)).digest('hex');
+  return `${timestamp}.${hmac}`;
+}
+
+function verifyAuthToken(token, pin) {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+  const [timestampStr, receivedHmac] = parts;
+  const timestamp = Number(timestampStr);
+  if (isNaN(timestamp)) return false;
+
+  // Validade de 30 dias em milissegundos
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  if (Date.now() - timestamp > THIRTY_DAYS_MS) {
+    return false; // Expirado
+  }
+
+  const secret = pin || 'default-pin-secret';
+  const expectedHmac = crypto.createHmac('sha256', secret).update(String(timestamp)).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(receivedHmac), Buffer.from(expectedHmac));
+}
+
+// Middleware de verificação de autenticação para rotas protegidas
+function requireAuth(req, res, next) {
+  const currentPin = getAppPin();
+  // Se APP_PIN não estiver configurado nas variáveis de ambiente, o acesso é liberado
+  if (!currentPin) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : req.headers['x-app-token'];
+
+  if (verifyAuthToken(token, currentPin)) {
+    return next();
+  }
+
+  return res.status(401).json({
+    error: 'Acesso não autorizado. Insira o PIN de 6 dígitos.',
+    needsAuth: true
+  });
+}
+
 // Helper para adicionar meses (YYYY-MM)
 function addMonths(monthStr, count) {
   const [year, month] = monthStr.split('-').map(Number);
@@ -44,6 +108,60 @@ function addMonths(monthStr, count) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
+
+// --- ROTAS DE AUTENTICAÇÃO ---
+
+// Verifica se a proteção por PIN está ativa
+app.get(['/api/auth/status', '/auth/status'], (req, res) => {
+  const currentPin = getAppPin();
+  const isRequired = Boolean(currentPin);
+  let authenticated = false;
+
+  if (isRequired) {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : req.headers['x-app-token'];
+    authenticated = verifyAuthToken(token, currentPin);
+  }
+
+  res.json({
+    pinRequired: isRequired,
+    authenticated: isRequired ? authenticated : true
+  });
+});
+
+// Realizar Login com o PIN de 6 dígitos
+app.post(['/api/auth/login', '/auth/login'], (req, res) => {
+  const currentPin = getAppPin();
+  const { pin } = req.body || {};
+
+  // Se o servidor não tiver PIN configurado
+  if (!currentPin) {
+    return res.json({
+      success: true,
+      token: generateAuthToken(''),
+      message: 'PIN não configurado no servidor. Acesso liberado.'
+    });
+  }
+
+  if (!pin || String(pin).trim() !== currentPin) {
+    return res.status(401).json({
+      success: false,
+      error: 'PIN incorreto. Tente novamente.'
+    });
+  }
+
+  // Gera token válido por 30 dias
+  const token = generateAuthToken(currentPin);
+  res.json({
+    success: true,
+    token,
+    expiresInDays: 30,
+    message: 'Acesso autorizado!'
+  });
+});
+
+// Aplicar requireAuth em todas as rotas da API subsequentes
+app.use(['/api', '/months', '/data', '/transactions', '/installments', '/accounts', '/pluggy', '/reset-seed', '/clear'], requireAuth);
 
 // --- ROTAS DA API (Compatíveis com e sem prefixo /api) ---
 

@@ -66,9 +66,13 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth =
     localStorage.setItem('pluggy_client_secret', clientSecret.trim());
 
     try {
+      const authToken = localStorage.getItem('app_auth_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
       const res = await fetch('/api/pluggy/connect-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim()
@@ -129,9 +133,13 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth =
       : [];
 
     try {
+      const authToken = localStorage.getItem('app_auth_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
       const res = await fetch('/api/pluggy/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           clientId: clientId.trim(),
           clientSecret: clientSecret.trim(),

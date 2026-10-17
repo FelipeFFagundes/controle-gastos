@@ -33,6 +33,7 @@ import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import LayersIcon from '@mui/icons-material/Layers';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 
 import { theme } from './theme';
 import { SummaryCards } from './components/SummaryCards';
@@ -42,11 +43,33 @@ import { InstallmentsTracker } from './components/InstallmentsTracker';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { PluggySyncModal } from './components/PluggySyncModal';
 import { AccountManagementModal } from './components/AccountManagementModal';
+import { PinLockScreen } from './components/PinLockScreen';
 import { getLocalDb, saveLocalDb, computeMonthData, computeInstallments } from './storage';
 import { defaultInitialData } from './initialData';
 
+// Helper para obter token salvo válido (30 dias)
+function getValidAuthToken() {
+  try {
+    const token = localStorage.getItem('app_auth_token');
+    const expiry = Number(localStorage.getItem('app_auth_expiry') || 0);
+    if (token && expiry && Date.now() < expiry) {
+      return token;
+    }
+    // Token expirado ou inexistente
+    localStorage.removeItem('app_auth_token');
+    localStorage.removeItem('app_auth_expiry');
+  } catch (e) {
+    console.error('Erro ao verificar token:', e);
+  }
+  return null;
+}
+
 export default function App() {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Estado de Autenticação por PIN
+  const [authToken, setAuthToken] = useState(getValidAuthToken);
+  const [isPinRequired, setIsPinRequired] = useState(null); // null: checando, true: precisa, false: liberado
 
   const [currentMonth, setCurrentMonth] = useState('2026-10');
   const [availableMonths, setAvailableMonths] = useState(['2026-10']);
@@ -79,10 +102,65 @@ export default function App() {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
+  // Helper para requisições autenticadas
+  const authFetch = (url, options = {}) => {
+    const headers = {
+      ...(options.headers || {})
+    };
+    const token = authToken || getValidAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return fetch(url, { ...options, headers });
+  };
+
+  // Verificar status do PIN no servidor
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const token = getValidAuthToken();
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch('/api/auth/status', { headers });
+        if (res.ok) {
+          const json = await res.json();
+          setIsPinRequired(json.pinRequired);
+          if (json.pinRequired && !json.authenticated) {
+            setAuthToken(null);
+            localStorage.removeItem('app_auth_token');
+            localStorage.removeItem('app_auth_expiry');
+          } else if (token) {
+            setAuthToken(token);
+          }
+        } else {
+          // Servidor offline ou sem auth
+          setIsPinRequired(false);
+        }
+      } catch (e) {
+        // Modo offline / local
+        setIsPinRequired(false);
+      }
+    };
+    checkAuthStatus();
+  }, []);
+
+  const handleUnlock = (newToken) => {
+    setAuthToken(newToken);
+    showToast('PIN autenticado com sucesso!');
+    fetchMonths();
+    fetchData('2026-10');
+  };
+
+  const handleLockApp = () => {
+    localStorage.removeItem('app_auth_token');
+    localStorage.removeItem('app_auth_expiry');
+    setAuthToken(null);
+    showToast('Aplicativo bloqueado com segurança.', 'info');
+  };
+
   // Carrega meses disponíveis
   const fetchMonths = async () => {
     try {
-      const res = await fetch('/api/months');
+      const res = await authFetch('/api/months');
       if (res.ok) {
         const json = await res.json();
         if (json.months && json.months.length > 0) {
@@ -111,8 +189,8 @@ export default function App() {
     // 2. Tenta sincronizar com o backend
     try {
       const [resData, resInst] = await Promise.all([
-        fetch(`/api/data?month=${targetMonth}`),
-        fetch(`/api/installments?month=${targetMonth}`)
+        authFetch(`/api/data?month=${targetMonth}`),
+        authFetch(`/api/installments?month=${targetMonth}`)
       ]);
 
       if (resData.ok && resInst.ok) {
@@ -150,9 +228,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchMonths();
-    fetchData('2026-10');
-  }, []);
+    if (isPinRequired === false || authToken) {
+      fetchMonths();
+      fetchData('2026-10');
+    }
+  }, [authToken, isPinRequired]);
 
   // Navegar entre meses
   const changeMonth = (direction) => {
@@ -199,7 +279,7 @@ export default function App() {
       }
       showToast('Lançamento atualizado!');
       // Background API sync
-      fetch(`/api/transactions/${editingTransaction.id}`, {
+      authFetch(`/api/transactions/${editingTransaction.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -270,7 +350,7 @@ export default function App() {
 
       showToast('Nova compra registrada!');
       // Background API sync
-      fetch('/api/transactions', {
+      authFetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -293,7 +373,7 @@ export default function App() {
       saveLocalDb(db);
       setData(computeMonthData(db, currentMonth));
       try {
-        await fetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' });
+        await authFetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' });
       } catch (e) {
         console.warn('Erro ao alternar status no servidor:', e);
       }
@@ -315,7 +395,7 @@ export default function App() {
 
     // Aguarda a exclusão no backend antes de refazer a sincronização geral para evitar restauração indevida
     try {
-      await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
+      await authFetch(`/api/transactions/${id}`, { method: 'DELETE' });
     } catch (e) {
       console.warn('Erro ao deletar transação no servidor:', e);
     }
@@ -335,7 +415,7 @@ export default function App() {
     showToast('Lançamentos e parcelamentos limpos! Pronto para sincronizar da Pluggy.');
     // Aguarda a limpeza no backend antes de re-sincronizar (evita restaurar dados antigos)
     try {
-      await fetch('/api/clear', { method: 'POST' });
+      await authFetch('/api/clear', { method: 'POST' });
     } catch (e) {
       console.warn('Erro ao limpar dados no servidor:', e);
     }
@@ -358,7 +438,7 @@ export default function App() {
     fetchData(currentMonth);
 
     // Salva no backend
-    fetch('/api/custom-surplus', {
+    authFetch('/api/custom-surplus', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ month: currentMonth, target: targetVal })
@@ -386,7 +466,7 @@ export default function App() {
       }
       saveLocalDb(db);
       setData(computeMonthData(db, currentMonth));
-      await fetch(`/api/accounts/${accData.id}`, {
+      await authFetch(`/api/accounts/${accData.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(accData)
@@ -406,7 +486,7 @@ export default function App() {
       showToast(`Cartão/Conta "${accData.name}" adicionado!`);
       saveLocalDb(db);
       setData(computeMonthData(db, currentMonth));
-      await fetch('/api/accounts', {
+      await authFetch('/api/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAcc)
@@ -428,7 +508,7 @@ export default function App() {
     
     // Aguarda a exclusão no backend antes de refazer o fetch geral
     try {
-      await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+      await authFetch(`/api/accounts/${id}`, { method: 'DELETE' });
     } catch (e) {
       console.warn('Erro ao deletar no servidor:', e);
     }
@@ -443,8 +523,18 @@ export default function App() {
     setCurrentMonth('2026-10');
     fetchMonths();
     fetchData('2026-10');
-    fetch('/api/reset-seed', { method: 'POST' }).catch(() => {});
+    authFetch('/api/reset-seed', { method: 'POST' }).catch(() => {});
   };
+
+  // Se o PIN for obrigatório e o usuário ainda não tiver autenticado
+  if (isPinRequired && !authToken) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <PinLockScreen onUnlock={handleUnlock} />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -557,7 +647,42 @@ export default function App() {
             >
               Nova Compra
             </Button>
+
+            {/* Botão de Bloqueio (se PIN configurado) */}
+            {isPinRequired && (
+              <IconButton
+                size="small"
+                onClick={handleLockApp}
+                title="Bloquear aplicativo"
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'rgba(255, 255, 255, 0.02)',
+                  '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)', color: 'error.main' }
+                }}
+              >
+                <LockOutlinedIcon fontSize="small" />
+              </IconButton>
+            )}
           </Box>
+
+          {/* Botão de Bloqueio no Mobile */}
+          {isPinRequired && (
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center' }}>
+              <IconButton
+                size="small"
+                onClick={handleLockApp}
+                title="Bloquear aplicativo"
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'rgba(255, 255, 255, 0.02)'
+                }}
+              >
+                <LockOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          )}
         </Toolbar>
       </AppBar>
 
