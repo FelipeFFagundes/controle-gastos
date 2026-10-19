@@ -209,28 +209,21 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth =
 
       <form onSubmit={handleSync}>
         <DialogContent dividers sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Alert severity="info" sx={{ '& .MuiAlert-message': { fontSize: '0.82rem' } }}>
-            Use o portal gratuito <strong>Meu Pluggy</strong> para obter suas credenciais de desenvolvedor.{' '}
-            <Link href="https://meu.pluggy.ai" target="_blank" rel="noreferrer" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontWeight: 700 }}>
-              meu.pluggy.ai <OpenInNewIcon sx={{ fontSize: 12 }} />
-            </Link>
-          </Alert>
-
           {error && <Alert severity="error">{error}</Alert>}
           {result && <Alert severity="success">{result.message}</Alert>}
 
-          {/* Status das credenciais do servidor */}
+          {/* Status das credenciais */}
           {serverConfigured ? (
-            <Box sx={{ bgcolor: 'rgba(76, 175, 80, 0.08)', p: 1.75, borderRadius: 2, border: '1px solid rgba(76, 175, 80, 0.3)' }}>
+            <Box sx={{ bgcolor: 'rgba(16, 185, 129, 0.08)', p: 2, borderRadius: 2, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CheckCircleIcon color="success" sx={{ fontSize: 22 }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  <CheckCircleIcon color="secondary" sx={{ fontSize: 24 }} />
                   <Box>
-                    <Typography variant="subtitle2" fontWeight={700} color="success.light">
-                      Credenciais ativas no servidor
+                    <Typography variant="subtitle2" fontWeight={700} color="secondary.light">
+                      Credenciais configuradas no servidor
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Configuradas via variáveis de ambiente (PLUGGY_CLIENT_ID / SECRET).
+                      O app está usando as variáveis de ambiente (PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET). Não é necessário digitar nada!
                     </Typography>
                   </Box>
                 </Box>
@@ -240,61 +233,70 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth =
                   color="inherit"
                   onClick={() => setShowManualInputs(!showManualInputs)}
                   startIcon={<SettingsSuggestIcon sx={{ fontSize: 16 }} />}
-                  sx={{ textTransform: 'none', fontSize: '0.78rem' }}
+                  sx={{ textTransform: 'none', fontSize: '0.75rem', opacity: 0.8 }}
                 >
-                  {showManualInputs ? 'Ocultar campos' : 'Inserir outras'}
+                  {showManualInputs ? 'Ocultar credenciais manuais' : 'Sobrescrever manualmente'}
                 </Button>
               </Box>
 
               {showManualInputs && (
-                <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' }, mt: 2 }}>
-                  <TextField
-                    label="Pluggy Client ID (opcional)"
-                    fullWidth
-                    size="small"
-                    placeholder="Ex.: 34a2e58c-..."
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                  />
-                  <TextField
-                    label="Pluggy Client Secret (opcional)"
-                    type="password"
-                    fullWidth
-                    size="small"
-                    placeholder="Ex.: 9f12d8a1-..."
-                    value={clientSecret}
-                    onChange={(e) => setClientSecret(e.target.value)}
-                  />
+                <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    Preencha apenas se desejar usar credenciais diferentes das variáveis de ambiente:
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
+                    <TextField
+                      label="Client ID alternativo"
+                      fullWidth
+                      size="small"
+                      placeholder="Ex.: 34a2e58c-..."
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value)}
+                    />
+                    <TextField
+                      label="Client Secret alternativo"
+                      type="password"
+                      fullWidth
+                      size="small"
+                      placeholder="Ex.: 9f12d8a1-..."
+                      value={clientSecret}
+                      onChange={(e) => setClientSecret(e.target.value)}
+                    />
+                  </Box>
                 </Box>
               )}
             </Box>
           ) : (
-            <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
-              <TextField
-                label="Pluggy Client ID"
-                fullWidth
-                size="small"
-                required={!serverConfigured}
-                placeholder="Ex.: 34a2e58c-..."
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-              />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Alert severity="warning" sx={{ '& .MuiAlert-message': { fontSize: '0.82rem' } }}>
+                As variáveis <strong>PLUGGY_CLIENT_ID</strong> e <strong>PLUGGY_CLIENT_SECRET</strong> ainda não foram detectadas no servidor.
+                Você pode inseri-las abaixo ou colocá-las no arquivo <code>.env</code> / variáveis da Vercel para não precisar digitar:
+              </Alert>
+              <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
+                <TextField
+                  label="Pluggy Client ID"
+                  fullWidth
+                  size="small"
+                  placeholder="Ex.: 34a2e58c-..."
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
 
-              <TextField
-                label="Pluggy Client Secret"
-                type="password"
-                fullWidth
-                size="small"
-                required={!serverConfigured}
-                placeholder="Ex.: 9f12d8a1-..."
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-              />
+                <TextField
+                  label="Pluggy Client Secret"
+                  type="password"
+                  fullWidth
+                  size="small"
+                  placeholder="Ex.: 9f12d8a1-..."
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+              </Box>
             </Box>
           )}
 
           <Divider sx={{ my: 0.5 }}>
-            <Chip label="Conexão de Bancos" size="small" />
+            <Chip label="Conexão & Sincronização" size="small" />
           </Divider>
 
           {/* Botão de Conectar Banco diretamente pelo Widget */}
