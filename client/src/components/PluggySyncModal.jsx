@@ -20,6 +20,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth = '2026-10' }) {
   const [clientId, setClientId] = useState('');
