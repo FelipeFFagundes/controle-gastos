@@ -475,11 +475,21 @@ app.delete(['/api/transactions/:id', '/transactions/:id'], async (req, res) => {
   const { id } = req.params;
   const initialLength = db.transactions.length;
 
-  db.transactions = db.transactions.filter(t => t.id !== id);
-
-  if (db.transactions.length === initialLength) {
+  const targetTx = db.transactions.find(t => t.id === id);
+  if (!targetTx) {
     return res.status(404).json({ error: 'Transação não encontrada.' });
   }
+
+  // Se a transação veio da Pluggy, registra o pluggyId e assinatura na lista negra para não recriar
+  if (!db.deletedPluggyIds) db.deletedPluggyIds = [];
+  if (targetTx.pluggyId) {
+    db.deletedPluggyIds.push(targetTx.pluggyId);
+  }
+  // Guarda também assinatura (descrição + valor + data) para transações sem pluggyId estável
+  const signature = `${targetTx.description || ''}_${targetTx.amount}_${targetTx.date || ''}`;
+  db.deletedPluggyIds.push(signature);
+
+  db.transactions = db.transactions.filter(t => t.id !== id);
 
   await saveDb(db);
   res.json({ success: true, message: 'Transação removida com sucesso.' });
@@ -724,8 +734,26 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
       fromDate = `${targetMonth}-01`;
     }
 
-    // 3. Processar cada conta / cartão
-    const syncFromDate = targetMonth ? `${addMonths(targetMonth, -1)}-01` : '2026-08-01';
+    // Data inicial baseada no período selecionado (period: '24h' | '7d' | '30d' | 'all')
+    const syncPeriod = req.body.period || 'all';
+    let syncFromDate = '2026-08-01';
+
+    const now = new Date();
+    if (syncPeriod === '24h') {
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      syncFromDate = yesterday.toISOString().split('T')[0];
+    } else if (syncPeriod === '7d') {
+      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      syncFromDate = sevenDaysAgo.toISOString().split('T')[0];
+    } else if (syncPeriod === '30d') {
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      syncFromDate = thirtyDaysAgo.toISOString().split('T')[0];
+    } else if (targetMonth) {
+      // Padrão por mês: a partir do dia 1 do mês anterior para cobrir ciclo da fatura
+      syncFromDate = `${addMonths(targetMonth, -1)}-01`;
+    }
+
+    const deletedSet = new Set(db.deletedPluggyIds || []);
 
     for (const acc of accounts) {
       const isCredit = acc.type === 'CREDIT' || acc.subtype === 'CREDIT_CARD';
@@ -800,7 +828,7 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
         });
       }
 
-      // Buscar transações recentes (filtrando a partir do mês anterior para cobrir o ciclo da fatura)
+      // Buscar transações recentes no período definido
       let pluggyTxs = [];
       try {
         pluggyTxs = await getPluggyTransactions(apiKey, acc.id, syncFromDate);
@@ -823,11 +851,16 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
         if (billForMonth && Number(billForMonth.totalAmount) > 0) {
           const billDueDate = (billForMonth.dueDate || '').substring(0, 10) || `${targetMonth || '2026-10'}-10`;
           const billMonth = (billForMonth.dueDate || '').substring(0, 7) || targetMonth || '2026-10';
-          const alreadyHasBill = db.transactions.some(t => t.pluggyId === `bill-${billForMonth.id}`);
-          if (!alreadyHasBill) {
+          const billId = `bill-${billForMonth.id}`;
+
+          // Verifica se já existe ou se foi excluída manualmente pelo usuário
+          const alreadyHasBill = db.transactions.some(t => t.pluggyId === billId);
+          const wasDeleted = deletedSet.has(billId);
+
+          if (!alreadyHasBill && !wasDeleted) {
             db.transactions.push({
               id: `tx-bill-${billForMonth.id}`,
-              pluggyId: `bill-${billForMonth.id}`,
+              pluggyId: billId,
               description: `Fatura ${bankName}`,
               amount: Number(billForMonth.totalAmount),
               type: 'expense',
@@ -846,11 +879,14 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
         // Se a instituição reportar o valor no campo balance da conta
         const cardBalance = Math.abs(Number(acc.balance));
         const defaultDate = `${targetMonth || '2026-10'}-10`;
-        const alreadyHasBalanceTx = db.transactions.some(t => t.pluggyId === `balance-${acc.id}-${targetMonth || '2026-10'}`);
-        if (!alreadyHasBalanceTx) {
+        const balancePluggyId = `balance-${acc.id}-${targetMonth || '2026-10'}`;
+        const alreadyHasBalanceTx = db.transactions.some(t => t.pluggyId === balancePluggyId);
+        const wasDeleted = deletedSet.has(balancePluggyId);
+
+        if (!alreadyHasBalanceTx && !wasDeleted) {
           db.transactions.push({
             id: `tx-acc-balance-${acc.id}-${targetMonth || '2026-10'}`,
-            pluggyId: `balance-${acc.id}-${targetMonth || '2026-10'}`,
+            pluggyId: balancePluggyId,
             description: `Fatura ${bankName}`,
             amount: cardBalance,
             type: 'expense',
@@ -872,6 +908,12 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
         const positiveAmount = Math.abs(rawAmount);
         const txDate = ptx.date.substring(0, 10);
         let txMonth = txDate.substring(0, 7);
+        const txSignature = `${ptx.description || ''}_${positiveAmount}_${txDate}`;
+
+        // Se o usuário excluiu essa transação anteriormente, NÃO recria
+        if (deletedSet.has(ptx.id) || deletedSet.has(txSignature)) {
+          continue;
+        }
 
         // Detectar pagamentos de fatura ou estornos/créditos em cartão de crédito
         const isPaymentOrCredit = /pagamento.*(saldo|fatura|recebido)|pgto.*fatura|cr[eé]dito de /i.test(ptx.description || '');
@@ -890,7 +932,6 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
         }
 
         // Tratar ciclo de faturamento e dia de fechamento
-        // Compras feitas a partir do dia de fechamento (ex: dia 29 ou 28) caem na fatura do mês seguinte
         const dayOfMonth = parseInt(txDate.substring(8, 10), 10);
         const isNubank = isCredit && (bankName.toLowerCase().includes('nubank') || existingAccount.billingCycle === 'previous_month');
         
@@ -902,13 +943,24 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
           txMonth = addMonths(txMonth, existingAccount.monthOffset);
         }
 
+        // Verificação Robusta Anti-Duplicação:
+        // 1. Mesmo pluggyId OU
+        // 2. Mesma descrição E mesmo valor E mesma conta E mesma data
         const existingTxIndex = db.transactions.findIndex(t => 
-          t.pluggyId === ptx.id || 
-          (t.description === ptx.description && t.amount === positiveAmount && t.date.startsWith(txDate))
+          (ptx.id && t.pluggyId === ptx.id) ||
+          (
+            t.description?.trim().toLowerCase() === (ptx.description || '').trim().toLowerCase() &&
+            Math.abs(Number(t.amount) - positiveAmount) < 0.01 &&
+            t.account === bankName &&
+            t.date?.substring(0, 10) === txDate
+          )
         );
 
         if (existingTxIndex !== -1) {
-          // Já existe: atualiza o mês de competência, conta e dados de parcelamento
+          // Já existe: vincula o pluggyId caso estivesse sem, e atualiza apenas mês e parcelamento
+          if (!db.transactions[existingTxIndex].pluggyId) {
+            db.transactions[existingTxIndex].pluggyId = ptx.id;
+          }
           db.transactions[existingTxIndex].month = txMonth;
           db.transactions[existingTxIndex].account = bankName;
           if (installment) db.transactions[existingTxIndex].installment = installment;
