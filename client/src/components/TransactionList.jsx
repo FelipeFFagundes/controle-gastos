@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Card,
   Box,
@@ -15,6 +15,13 @@ import {
   Checkbox,
   Divider,
   Stack,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Collapse,
+  TableSortLabel,
   useMediaQuery,
   useTheme
 } from '@mui/material';
@@ -25,6 +32,9 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
 
 export function TransactionList({
   transactions = [],
@@ -42,6 +52,40 @@ export function TransactionList({
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'expense' | 'income'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'paid' | 'pending'
+  
+  // Filtros avançados
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  
+  // Ordenação
+  const [sortBy, setSortBy] = useState('date'); // 'date' | 'amount' | 'description'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+
+  const handleSort = (property) => {
+    const isAsc = sortBy === property && sortOrder === 'asc';
+    setSortOrder(isAsc ? 'desc' : 'asc');
+    setSortBy(property);
+  };
+
+  const hasActiveAdvancedFilters = Boolean(
+    startDate || endDate || minAmount || maxAmount || categoryFilter
+  );
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setTypeFilter('all');
+    setStatusFilter('all');
+    setStartDate('');
+    setEndDate('');
+    setMinAmount('');
+    setMaxAmount('');
+    setCategoryFilter('');
+    if (onSelectAccountFilter) onSelectAccountFilter('');
+  };
 
   const formatBRL = (val) => {
     return Number(val || 0).toLocaleString('pt-BR', {
@@ -56,23 +100,68 @@ export function TransactionList({
     return `${day}/${month}/${year}`;
   };
 
-  // Filtragem
-  const filteredTransactions = transactions.filter(t => {
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const descMatch = t.description.toLowerCase().includes(term);
-      const catMatch = t.category.toLowerCase().includes(term);
-      const accMatch = t.account.toLowerCase().includes(term);
-      if (!descMatch && !catMatch && !accMatch) return false;
-    }
+  // Filtragem e Ordenação com useMemo
+  const filteredTransactions = useMemo(() => {
+    return transactions
+      .filter(t => {
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          const descMatch = t.description?.toLowerCase().includes(term);
+          const catMatch = t.category?.toLowerCase().includes(term);
+          const accMatch = t.account?.toLowerCase().includes(term);
+          if (!descMatch && !catMatch && !accMatch) return false;
+        }
 
-    if (typeFilter !== 'all' && t.type !== typeFilter) return false;
-    if (statusFilter === 'paid' && !t.paid) return false;
-    if (statusFilter === 'pending' && t.paid) return false;
-    if (selectedAccountFilter && t.account !== selectedAccountFilter) return false;
+        if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+        if (statusFilter === 'paid' && !t.paid) return false;
+        if (statusFilter === 'pending' && t.paid) return false;
+        if (selectedAccountFilter && t.account !== selectedAccountFilter) return false;
+        if (categoryFilter && t.category !== categoryFilter) return false;
 
-    return true;
-  });
+        // Filtro por Data
+        if (startDate && t.date && t.date < startDate) return false;
+        if (endDate && t.date && t.date > endDate) return false;
+
+        // Filtro por Valor
+        const amountNum = Number(t.amount || 0);
+        if (minAmount !== '' && !isNaN(Number(minAmount)) && amountNum < Number(minAmount)) return false;
+        if (maxAmount !== '' && !isNaN(Number(maxAmount)) && amountNum > Number(maxAmount)) return false;
+
+        return true;
+      })
+      .sort((a, b) => {
+        let result = 0;
+        if (sortBy === 'date') {
+          result = (a.date || '').localeCompare(b.date || '');
+        } else if (sortBy === 'amount') {
+          result = Number(a.amount || 0) - Number(b.amount || 0);
+        } else if (sortBy === 'description') {
+          result = (a.description || '').localeCompare(b.description || '');
+        }
+        return sortOrder === 'asc' ? result : -result;
+      });
+  }, [
+    transactions,
+    searchTerm,
+    typeFilter,
+    statusFilter,
+    selectedAccountFilter,
+    categoryFilter,
+    startDate,
+    endDate,
+    minAmount,
+    maxAmount,
+    sortBy,
+    sortOrder
+  ]);
+
+  // Soma dos valores filtrados
+  const filteredTotal = useMemo(() => {
+    return filteredTransactions.reduce((acc, t) => {
+      const val = Number(t.amount || 0);
+      return t.type === 'expense' ? acc - val : acc + val;
+    }, 0);
+  }, [filteredTransactions]);
 
   return (
     <Card>
@@ -102,8 +191,20 @@ export function TransactionList({
             }}
           />
 
-          {/* Chips de Filtro */}
-          <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: { xs: 0.5, sm: 0 } }}>
+          {/* Botão de Filtros Avançados */}
+          <Button
+            size="small"
+            variant={showAdvancedFilters || hasActiveAdvancedFilters ? 'contained' : 'outlined'}
+            color={hasActiveAdvancedFilters ? 'secondary' : 'inherit'}
+            startIcon={<FilterListIcon />}
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            sx={{ whiteSpace: 'nowrap', minWidth: 120, textTransform: 'none' }}
+          >
+            {hasActiveAdvancedFilters ? 'Filtros (Ativos)' : 'Filtrar'}
+          </Button>
+
+          {/* Chips de Filtro Rápido */}
+          <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: { xs: 0.5, sm: 0 }, alignItems: 'center' }}>
             <Chip
               label="Todas"
               clickable
@@ -148,18 +249,165 @@ export function TransactionList({
           </Stack>
         </Box>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="caption" color="text.secondary">
-            Mostrando <strong>{filteredTransactions.length}</strong> de <strong>{transactions.length}</strong> lançamentos
-          </Typography>
-          {selectedAccountFilter && (
-            <Chip
-              size="small"
-              label={`Conta: ${selectedAccountFilter}`}
-              onDelete={() => onSelectAccountFilter('')}
-              color="primary"
-              variant="outlined"
-            />
+        {/* Painel Expansível de Filtros Avançados */}
+        <Collapse in={showAdvancedFilters}>
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              bgcolor: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2
+            }}
+          >
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
+              {/* Filtro por Data Inicial */}
+              <TextField
+                label="Data inicial"
+                type="date"
+                size="small"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+
+              {/* Filtro por Data Final */}
+              <TextField
+                label="Data final"
+                type="date"
+                size="small"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+
+              {/* Filtro por Valor Mínimo */}
+              <TextField
+                label="Valor mínimo (R$)"
+                type="number"
+                size="small"
+                placeholder="Ex.: 50"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                fullWidth
+              />
+
+              {/* Filtro por Valor Máximo */}
+              <TextField
+                label="Valor máximo (R$)"
+                type="number"
+                size="small"
+                placeholder="Ex.: 500"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                fullWidth
+              />
+            </Box>
+
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+                {/* Filtro de Categoria */}
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                  <InputLabel>Categoria</InputLabel>
+                  <Select
+                    value={categoryFilter}
+                    label="Categoria"
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                  >
+                    <MenuItem value="">
+                      <em>Todas as categorias</em>
+                    </MenuItem>
+                    {categories.map((c) => (
+                      <MenuItem key={c} value={c}>
+                        {c}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* Ordenação para mobile */}
+                {isMobile && (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <FormControl size="small" sx={{ minWidth: 130 }}>
+                      <InputLabel>Ordenar por</InputLabel>
+                      <Select
+                        value={sortBy}
+                        label="Ordenar por"
+                        onChange={(e) => setSortBy(e.target.value)}
+                      >
+                        <MenuItem value="date">Data</MenuItem>
+                        <MenuItem value="amount">Valor</MenuItem>
+                        <MenuItem value="description">Descrição</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="inherit"
+                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                      startIcon={<SwapVertIcon />}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Botão de Limpar Filtros */}
+              {(hasActiveAdvancedFilters || searchTerm || typeFilter !== 'all' || statusFilter !== 'all' || selectedAccountFilter) && (
+                <Button
+                  size="small"
+                  variant="text"
+                  color="inherit"
+                  startIcon={<FilterAltOffIcon />}
+                  onClick={clearAllFilters}
+                  sx={{ textTransform: 'none', fontSize: '0.8rem' }}
+                >
+                  Limpar todos os filtros
+                </Button>
+              )}
+            </Box>
+          </Box>
+        </Collapse>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="caption" color="text.secondary">
+              Mostrando <strong>{filteredTransactions.length}</strong> de <strong>{transactions.length}</strong> lançamentos
+            </Typography>
+            {hasActiveAdvancedFilters && (
+              <Chip
+                size="small"
+                label="Filtros personalizados aplicados"
+                color="secondary"
+                variant="outlined"
+                onDelete={clearAllFilters}
+                sx={{ height: 22, fontSize: '0.72rem' }}
+              />
+            )}
+            {selectedAccountFilter && (
+              <Chip
+                size="small"
+                label={`Conta: ${selectedAccountFilter}`}
+                onDelete={() => onSelectAccountFilter && onSelectAccountFilter('')}
+                color="primary"
+                variant="outlined"
+                sx={{ height: 22, fontSize: '0.72rem' }}
+              />
+            )}
+          </Box>
+
+          {/* Subtotal dos lançamentos filtrados */}
+          {filteredTransactions.length > 0 && (
+            <Typography variant="caption" fontWeight={600} color={filteredTotal >= 0 ? 'secondary.main' : 'error.main'}>
+              Total filtrado: {formatBRL(Math.abs(filteredTotal))} {filteredTotal >= 0 ? '(Saldo positivo)' : '(Despesas)'}
+            </Typography>
           )}
         </Box>
       </Box>
@@ -248,10 +496,34 @@ export function TransactionList({
             <TableHead sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)' }}>
               <TableRow>
                 <TableCell align="center" sx={{ width: 60, fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Descrição & Categoria</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active={sortBy === 'description'}
+                    direction={sortBy === 'description' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('description')}
+                  >
+                    Descrição & Categoria
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Conta / Cartão</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Data</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Valor</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active={sortBy === 'date'}
+                    direction={sortBy === 'date' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('date')}
+                  >
+                    Data
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>
+                  <TableSortLabel
+                    active={sortBy === 'amount'}
+                    direction={sortBy === 'amount' ? sortOrder : 'asc'}
+                    onClick={() => handleSort('amount')}
+                  >
+                    Valor
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell align="right" sx={{ width: 100, fontWeight: 700 }}>Ações</TableCell>
               </TableRow>
             </TableHead>
