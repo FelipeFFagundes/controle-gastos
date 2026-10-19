@@ -322,11 +322,16 @@ export function TransactionList({
                     <MenuItem value="">
                       <em>Todas as categorias</em>
                     </MenuItem>
-                    {categories.map((c) => (
-                      <MenuItem key={c} value={c}>
-                        {c}
-                      </MenuItem>
-                    ))}
+                    {categories.map((c) => {
+                      const catName = typeof c === 'string' ? c : c?.name || '';
+                      const catKey = typeof c === 'string' ? c : c?.id || c?.name || Math.random();
+                      if (!catName) return null;
+                      return (
+                        <MenuItem key={catKey} value={catName}>
+                          {catName}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
 

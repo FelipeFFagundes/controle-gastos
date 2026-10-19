@@ -561,7 +561,7 @@ export default function App() {
               <AccountBalanceWalletIcon fontSize="small" />
             </Box>
             <Box>
-              <Typography variant="subtitle1" fontWeight={700} lineHeight={1.2} noWrap>
+              <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }} noWrap>
                 Controle de Gastos
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
