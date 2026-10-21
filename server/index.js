@@ -10,6 +10,7 @@ import {
   getPluggyApiKey, 
   createPluggyConnectToken,
   getPluggyItems,
+  getPluggyItem,
   triggerPluggyItemSync,
   getPluggyAccountsByItem,
   getPluggyBills,
@@ -688,17 +689,37 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
     const fetchedItems = await getPluggyItems(apiKey);
     fetchedItems.forEach(it => targetItemIds.add(it.id));
 
-    // Se ainda não temos itemIds, tenta buscar direto /accounts (caso o usuário tenha usado token de item ou endpoint legado)
+    // Se temos conexões, dispara sincronização de cada item e aguarda caso esteja atualizando
     let accounts = [];
+    const itemSyncWarnings = [];
+
     if (targetItemIds.size > 0) {
       for (const itemId of targetItemIds) {
         try {
-          // Solicita atualização do item junto à instituição
-          triggerPluggyItemSync(apiKey, itemId).catch(() => {});
+          // Solicita atualização do item junto à instituição (trigger sync)
+          await triggerPluggyItemSync(apiKey, itemId);
+
+          // Verifica se o item está em processo de sincronização e aguarda até 6 segundos para novos dados
+          let itemInfo = await getPluggyItem(apiKey, itemId);
+          let attempts = 0;
+          while (itemInfo && itemInfo.status === 'UPDATING' && attempts < 3) {
+            await new Promise(r => setTimeout(r, 2000));
+            itemInfo = await getPluggyItem(apiKey, itemId);
+            attempts++;
+          }
+
+          if (itemInfo) {
+            if (itemInfo.status === 'LOGIN_ERROR') {
+              itemSyncWarnings.push(`A conexão "${itemInfo.connector?.name || itemId}" precisa de atualização de senha no widget.`);
+            } else if (itemInfo.status === 'WAITING_USER_INPUT') {
+              itemSyncWarnings.push(`A conexão "${itemInfo.connector?.name || itemId}" aguarda validação (SMS/Token) no app do banco.`);
+            }
+          }
+
           const itemAccounts = await getPluggyAccountsByItem(apiKey, itemId);
           accounts.push(...itemAccounts);
         } catch (err) {
-          console.warn(`Erro ao buscar contas do item ${itemId}:`, err.message);
+          console.warn(`Erro ao processar contas do item ${itemId}:`, err.message);
         }
       }
     } else {
@@ -753,6 +774,14 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
       syncFromDate = `${addMonths(targetMonth, -1)}-01`;
     }
 
+    // Se o usuário selecionou período específico (ex: 24h, 7d), garantir que a busca cubra também o mês alvo
+    if (syncPeriod !== 'all' && targetMonth) {
+      const targetStart = `${addMonths(targetMonth, -1)}-01`;
+      if (targetStart < syncFromDate) {
+        // Se targetStart for anterior ao syncFromDate, mantemos syncFromDate para respeitar o filtro de período
+      }
+    }
+
     const deletedSet = new Set(db.deletedPluggyIds || []);
 
     for (const acc of accounts) {
@@ -783,8 +812,8 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
           : isCredit ? '#eab308' : '#3b82f6';
 
       const isNubankCard = bankName.toLowerCase().includes('nubank') && isCredit;
-      const defaultBillingCycle = isNubankCard ? 'previous_month' : 'same_month';
-      const defaultMonthOffset = isNubankCard ? -1 : 0;
+      const defaultBillingCycle = 'same_month';
+      const defaultMonthOffset = 0;
       const defaultClosingDay = isNubankCard ? 28 : (bankName.toLowerCase().includes('itau') && isCredit ? 29 : null);
 
       // Auto-cadastrar ou atualizar a conta no app (identificação por ID ou nome + tipo)
@@ -933,13 +962,12 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
 
         // Tratar ciclo de faturamento e dia de fechamento
         const dayOfMonth = parseInt(txDate.substring(8, 10), 10);
-        const isNubank = isCredit && (bankName.toLowerCase().includes('nubank') || existingAccount.billingCycle === 'previous_month');
         
-        if (isNubank && installment && dayOfMonth >= 28) {
-          txMonth = addMonths(txDate.substring(0, 7), 1);
-        } else if (isCredit && existingAccount.closingDay && dayOfMonth >= existingAccount.closingDay) {
+        // Compras feitas a partir do dia de fechamento caem na fatura do mês seguinte
+        if (existingAccount.closingDay && dayOfMonth >= existingAccount.closingDay) {
           txMonth = addMonths(txDate.substring(0, 7), 1);
         } else if (existingAccount.monthOffset && existingAccount.monthOffset !== 0) {
+          // Aplica offset manual se configurado (apenas para compras à vista se não houver closingDay que já avance)
           txMonth = addMonths(txMonth, existingAccount.monthOffset);
         }
 
@@ -987,12 +1015,18 @@ app.post(['/api/pluggy/sync', '/pluggy/sync'], async (req, res) => {
 
     await saveDb(db);
 
+    let successMessage = `Sincronização concluída! ${importedCount} lançamentos importados/atualizados de ${accounts.length} contas/cartões.`;
+    if (itemSyncWarnings.length > 0) {
+      successMessage += ` Atenção: ${itemSyncWarnings.join(' ')}`;
+    }
+
     res.json({
       success: true,
-      message: `Sincronização concluída! ${importedCount} lançamentos importados de ${accounts.length} contas/cartões.`,
+      message: successMessage,
       importedCount,
       accountsCount: accounts.length,
-      billsCount
+      billsCount,
+      warnings: itemSyncWarnings
     });
   } catch (err) {
     console.error('Erro ao sincronizar com Pluggy:', err);

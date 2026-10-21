@@ -78,6 +78,26 @@ export async function getPluggyItems(apiKey) {
 }
 
 /**
+ * Tenta obter informações de um item específico (inclui status, lastUpdatedAt, etc.)
+ */
+export async function getPluggyItem(apiKey, itemId) {
+  try {
+    const res = await fetch(`${PLUGGY_API_URL}/items/${itemId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn(`Aviso ao obter status do item ${itemId}:`, err.message);
+  }
+  return null;
+}
+
+/**
  * Solicita à Pluggy atualização/re-sincronização do item junto ao banco
  */
 export async function triggerPluggyItemSync(apiKey, itemId) {

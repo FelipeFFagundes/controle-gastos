@@ -95,8 +95,8 @@
       "name": "Cartão Nubank",
       "type": "credit_card",
       "color": "#820ad1",
-      "billingCycle": "previous_month",
-      "monthOffset": -1,
+      "billingCycle": "same_month",
+      "monthOffset": 0,
       "closingDay": 28
     }
   ],
@@ -1663,7 +1663,7 @@
       "category": "Outros",
       "account": "Cartão Nubank",
       "date": "2026-10-12",
-      "month": "2026-09",
+      "month": "2026-10",
       "paid": false,
       "installment": null
     },
