@@ -23,20 +23,27 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import EditIcon from '@mui/icons-material/Edit';
 
+// Dia 15 do mês exibido, ou hoje se for o mês atual.
+function defaultDate(month) {
+  const today = new Date();
+  const todayMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  return month === todayMonth ? `${todayMonth}-${String(today.getDate()).padStart(2, '0')}` : `${month}-15`;
+}
+
 export function TransactionModal({
   isOpen,
   onClose,
   onSave,
   categories = [],
   accounts = [],
-  currentMonth = '2026-10',
+  currentMonth,
   editTransaction = null
 }) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
   const [category, setCategory] = useState('');
-  const [account, setAccount] = useState('');
+  const [accountId, setAccountId] = useState('');
   const [date, setDate] = useState('');
   const [month, setMonth] = useState('');
   const [paid, setPaid] = useState(false);
@@ -51,9 +58,10 @@ export function TransactionModal({
       setAmount(editTransaction.amount ? String(editTransaction.amount) : '');
       setType(editTransaction.type || 'expense');
       setCategory(editTransaction.category || (categories[0]?.name || 'Outros'));
-      setAccount(editTransaction.account || (accounts[0]?.name || 'Fatura XP'));
+      setAccountId(editTransaction.accountId || accounts[0]?.id || '');
       setDate(editTransaction.date || `${currentMonth}-15`);
-      setMonth(editTransaction.month || (editTransaction.date ? editTransaction.date.substring(0, 7) : currentMonth));
+      // Mês só vem preenchido se o usuário o fixou; senão o servidor calcula pela data e pelo cartão.
+      setMonth(editTransaction.monthLocked ? editTransaction.month : '');
       setPaid(Boolean(editTransaction.paid));
       if (editTransaction.installment) {
         setIsInstallment(true);
@@ -70,9 +78,9 @@ export function TransactionModal({
       setAmount('');
       setType('expense');
       setCategory(categories[0]?.name || 'Outros');
-      setAccount(accounts[0]?.name || 'Fatura XP');
-      setDate(`${currentMonth}-15`);
-      setMonth(currentMonth);
+      setAccountId(accounts[0]?.id || '');
+      setDate(defaultDate(currentMonth));
+      setMonth('');
       setPaid(false);
       setIsInstallment(false);
       setCurrentInstallment(1);
@@ -81,28 +89,12 @@ export function TransactionModal({
     }
   }, [editTransaction, isOpen, currentMonth, categories, accounts]);
 
-  const handleDateChange = (newDate) => {
-    setDate(newDate);
-    if (!editTransaction && newDate) {
-      const day = parseInt(newDate.split('-')[2], 10);
-      const baseM = newDate.substring(0, 7);
-      const targetAcc = accounts.find(a => a.name === account);
-      if (targetAcc?.closingDay && day >= targetAcc.closingDay) {
-        const [y, m] = baseM.split('-').map(Number);
-        const d = new Date(y, m, 1);
-        setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-      } else {
-        setMonth(baseM);
-      }
-    }
-  };
-
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!description.trim() || !amount) {
-      alert('Por favor, informe a descrição e o valor.');
+    if (!description.trim() || !amount || !accountId) {
+      alert('Informe a descrição, o valor e a conta/cartão.');
       return;
     }
 
@@ -111,9 +103,9 @@ export function TransactionModal({
       amount: parseFloat(amount),
       type,
       category: type === 'income' ? 'Salário & Entradas' : (category || 'Outros'),
-      account,
+      accountId,
       date,
-      month: month || date.substring(0, 7),
+      month: month.trim() || null,
       paid,
       isInstallment: type === 'expense' ? isInstallment : false,
       currentInstallment: parseInt(currentInstallment, 10),
@@ -161,11 +153,20 @@ export function TransactionModal({
             >
               Salário / Receita Prevista
             </Button>
+            <Button
+              variant={type === 'transfer' ? 'contained' : 'outlined'}
+              color="info"
+              onClick={() => setType('transfer')}
+              sx={{ fontWeight: 600 }}
+              title="Pagamento de fatura, aplicação, Pix entre contas próprias: não conta como gasto nem receita"
+            >
+              Transferência
+            </Button>
           </ButtonGroup>
 
           {/* Descrição e Valor */}
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={8}>
+            <Grid size={{ xs: 12, sm: 8 }}>
               <TextField
                 label={type === 'income' ? 'Descrição da Receita / Salário' : 'Descrição da Compra'}
                 fullWidth
@@ -176,7 +177,7 @@ export function TransactionModal({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 label={type === 'income' ? 'Valor Previsto (R$)' : 'Valor (R$)'}
                 fullWidth
@@ -196,16 +197,16 @@ export function TransactionModal({
 
           {/* Conta/Cartão e Categoria (Categoria apenas se for despesa) */}
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={type === 'income' ? 6 : 6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>{type === 'income' ? 'Receber Em (Conta / Banco)' : 'Conta / Cartão'}</InputLabel>
                 <Select
-                  value={account}
+                  value={accountId}
                   label={type === 'income' ? 'Receber Em (Conta / Banco)' : 'Conta / Cartão'}
-                  onChange={(e) => setAccount(e.target.value)}
+                  onChange={(e) => setAccountId(e.target.value)}
                 >
                   {accounts.map(acc => (
-                    <MenuItem key={acc.id} value={acc.name}>
+                    <MenuItem key={acc.id} value={acc.id}>
                       {acc.name}
                     </MenuItem>
                   ))}
@@ -214,7 +215,7 @@ export function TransactionModal({
             </Grid>
 
             {type === 'expense' ? (
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Categoria</InputLabel>
                   <Select
@@ -235,26 +236,26 @@ export function TransactionModal({
 
           {/* Data e Mês da Fatura / Competência */}
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 label={type === 'income' ? 'Data de Recebimento' : 'Data da Compra'}
                 type="date"
                 fullWidth
                 size="small"
                 value={date}
-                onChange={(e) => handleDateChange(e.target.value)}
+                onChange={(e) => setDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 label="Mês da Fatura / Competência"
                 fullWidth
                 size="small"
-                placeholder="AAAA-MM (ex.: 2026-10)"
+                placeholder="Automático"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                helperText="Mês em que o gasto entra no cálculo"
+                helperText="Em branco: calculado pela data e pelo fechamento do cartão. Ou fixe um mês (AAAA-MM)."
               />
             </Grid>
           </Grid>
@@ -280,7 +281,7 @@ export function TransactionModal({
               {isInstallment && (
                 <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <TextField
                         label="Parcela Atual"
                         type="number"
@@ -291,7 +292,7 @@ export function TransactionModal({
                         onChange={(e) => setCurrentInstallment(e.target.value)}
                       />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <TextField
                         label="Total de Parcelas"
                         type="number"

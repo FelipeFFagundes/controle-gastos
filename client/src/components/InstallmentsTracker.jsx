@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Grid,
   Card,
-  CardContent,
   Typography,
   Box,
   LinearProgress,
@@ -13,18 +11,15 @@ import {
   InputAdornment,
   IconButton,
   Collapse,
-  Button,
   useTheme,
   useMediaQuery,
   Tooltip
 } from '@mui/material';
 import LayersIcon from '@mui/icons-material/Layers';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 
 // Helpers de data

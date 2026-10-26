@@ -1,196 +1,98 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Button,
-  TextField,
   Typography,
   Alert,
   CircularProgress,
   Box,
   IconButton,
-  Link,
   Divider,
-  Chip
+  Chip,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SyncIcon from '@mui/icons-material/Sync';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import SettingsSuggestIcon from '@mui/icons-material/SettingsSuggest';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { useQueryClient } from '@tanstack/react-query';
+import { api } from '../api';
+import { keys, usePluggyStatus, usePluggySync } from '../queries';
 
-export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth = '2026-10' }) {
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
-  const [itemId, setItemId] = useState('');
-  const [syncPeriod, setSyncPeriod] = useState('7d'); // '24h' | '7d' | '30d' | 'all'
-  const [serverConfigured, setServerConfigured] = useState(false);
-  const [showManualInputs, setShowManualInputs] = useState(false);
-  const [loading, setLoading] = useState(false);
+const PERIODS = [
+  { value: '24h', label: 'Últimas 24h', desc: 'Apenas hoje' },
+  { value: '7d', label: 'Últimos 7 dias', desc: 'Recentes' },
+  { value: '30d', label: 'Últimos 30 dias', desc: 'Mês atual' },
+  { value: 'all', label: 'Completo', desc: 'Todo o histórico' }
+];
+
+export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
+  const queryClient = useQueryClient();
+  const status = usePluggyStatus(isOpen);
+  const sync = usePluggySync();
+  const [syncPeriod, setSyncPeriod] = useState('7d');
+  const [clearBeforeSync, setClearBeforeSync] = useState(false);
   const [widgetLoading, setWidgetLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const savedId = localStorage.getItem('pluggy_client_id') || '';
-    const savedSecret = localStorage.getItem('pluggy_client_secret') || '';
-    const savedItems = localStorage.getItem('pluggy_item_ids') || '';
-    setClientId(savedId);
-    setClientSecret(savedSecret);
-    setItemId(savedItems);
-
-    // Verificar se as credenciais já estão configuradas no servidor (.env ou Vercel)
-    const checkServerStatus = async () => {
-      try {
-        const authToken = localStorage.getItem('app_auth_token');
-        const headers = {};
-        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-        const res = await fetch('/api/pluggy/status', { headers });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.configured) {
-            setServerConfigured(true);
-          }
-        }
-      } catch (err) {
-        console.warn('Erro ao verificar status da Pluggy:', err);
-      }
-    };
-
-    if (isOpen) {
-      checkServerStatus();
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Salva novos Item IDs na lista local
-  const addStoredItemId = (newItemId) => {
-    const current = localStorage.getItem('pluggy_item_ids') || '';
-    const ids = current.split(',').map(s => s.trim()).filter(Boolean);
-    if (!ids.includes(newItemId)) {
-      ids.push(newItemId);
-    }
-    const updated = ids.join(', ');
-    localStorage.setItem('pluggy_item_ids', updated);
-    setItemId(updated);
-  };
+  const configured = status.data?.configured;
+  const items = status.data?.items || [];
 
-  // Abre o widget oficial Pluggy Connect para o usuário conectar o banco (Itaú, Nubank, XP, etc.)
+  // Abre o widget oficial Pluggy Connect para vincular uma instituição.
   const handleOpenConnectWidget = async () => {
-    if (!serverConfigured && (!clientId.trim() || !clientSecret.trim())) {
-      setError('Preencha seu Client ID e Client Secret antes de conectar um banco.');
-      return;
-    }
-
     setWidgetLoading(true);
     setError(null);
-
-    if (clientId.trim()) localStorage.setItem('pluggy_client_id', clientId.trim());
-    if (clientSecret.trim()) localStorage.setItem('pluggy_client_secret', clientSecret.trim());
-
     try {
-      const authToken = localStorage.getItem('app_auth_token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
-      const res = await fetch('/api/pluggy/connect-token', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          clientId: clientId.trim() || undefined,
-          clientSecret: clientSecret.trim() || undefined
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro ao gerar token de conexão da Pluggy');
-      }
-
+      const { connectToken } = await api.pluggyConnectToken();
       if (typeof window.PluggyConnect === 'undefined') {
-        throw new Error('O widget da Pluggy está carregando. Aguarde alguns segundos e tente novamente.');
+        throw new Error('O widget da Pluggy ainda está carregando. Aguarde alguns segundos e tente novamente.');
       }
-
-      // Inicializa o widget Pluggy Connect
-      const pluggyConnect = new window.PluggyConnect({
-        connectToken: data.connectToken,
+      new window.PluggyConnect({
+        connectToken,
         includeSandbox: true,
-        onSuccess: (itemData) => {
-          const connectedItemId = itemData.item?.id;
-          if (connectedItemId) {
-            addStoredItemId(connectedItemId);
-            setResult({ message: `Banco conectado com sucesso! (ID: ${connectedItemId.substring(0, 8)}...). Clique em "Sincronizar Faturas".` });
+        onSuccess: async (itemData) => {
+          const itemId = itemData.item?.id;
+          if (!itemId) return;
+          try {
+            await api.pluggyRegisterItem(itemId);
+            queryClient.invalidateQueries({ queryKey: keys.pluggy });
+            setMessage('Banco conectado! Agora clique em "Sincronizar".');
+          } catch (err) {
+            setError(err.message);
           }
         },
-        onError: (err) => {
-          console.error('Erro no widget Pluggy:', err);
-          setError('Ocorreu um erro ao conectar a instituição.');
-        },
-        onClose: () => {
-          setWidgetLoading(false);
-        }
-      });
-
-      pluggyConnect.init();
+        onError: () => setError('Ocorreu um erro ao conectar a instituição.'),
+        onClose: () => setWidgetLoading(false)
+      }).init();
     } catch (err) {
-      console.error(err);
-      setError(err.message || 'Falha ao inicializar conexão.');
+      setError(err.message);
     } finally {
       setWidgetLoading(false);
     }
   };
 
-  // Sincroniza faturas e transações com a Pluggy
-  const handleSync = async (e) => {
-    if (e) e.preventDefault();
-    setLoading(true);
+  const handleSync = (e) => {
+    e.preventDefault();
+    if (clearBeforeSync && !window.confirm('Isso apaga todos os lançamentos e cartões/contas antes de importar. Continuar?')) return;
     setError(null);
-    setResult(null);
-
-    if (clientId.trim()) localStorage.setItem('pluggy_client_id', clientId.trim());
-    if (clientSecret.trim()) localStorage.setItem('pluggy_client_secret', clientSecret.trim());
-    if (itemId.trim()) localStorage.setItem('pluggy_item_ids', itemId.trim());
-
-    const itemIdsArray = itemId
-      ? itemId.split(',').map(s => s.trim()).filter(Boolean)
-      : [];
-
-    try {
-      const authToken = localStorage.getItem('app_auth_token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
-      const res = await fetch('/api/pluggy/sync', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          clientId: clientId.trim() || undefined,
-          clientSecret: clientSecret.trim() || undefined,
-          itemIds: itemIdsArray,
-          month: currentMonth,
-          period: syncPeriod
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro ao sincronizar com a Pluggy');
+    setMessage(null);
+    sync.mutate(
+      { period: syncPeriod, clearExisting: clearBeforeSync },
+      {
+        onSuccess: (data) => {
+          setMessage(data.message);
+          setClearBeforeSync(false);
+          onSyncSuccess?.(data);
+        },
+        onError: (err) => setError(err.message)
       }
-
-      setResult(data);
-      if (onSyncSuccess) {
-        onSyncSuccess(data);
-      }
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Falha na conexão com a Pluggy.');
-    } finally {
-      setLoading(false);
-    }
+    );
   };
 
   return (
@@ -210,175 +112,105 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth =
       <form onSubmit={handleSync}>
         <DialogContent dividers sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {error && <Alert severity="error">{error}</Alert>}
-          {result && <Alert severity="success">{result.message}</Alert>}
+          {message && <Alert severity="success">{message}</Alert>}
 
-          {/* Status das credenciais */}
-          {serverConfigured ? (
-            <Box sx={{ bgcolor: 'rgba(16, 185, 129, 0.08)', p: 2, borderRadius: 2, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                  <CheckCircleIcon color="secondary" sx={{ fontSize: 24 }} />
-                  <Box>
-                    <Typography variant="subtitle2" fontWeight={700} color="secondary.light">
-                      Credenciais configuradas no servidor
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      O app está usando as variáveis de ambiente (PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET). Não é necessário digitar nada!
-                    </Typography>
-                  </Box>
-                </Box>
+          {status.isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : !configured ? (
+            <Alert severity="warning" sx={{ '& .MuiAlert-message': { fontSize: '0.82rem' } }}>
+              Configure <strong>PLUGGY_CLIENT_ID</strong> e <strong>PLUGGY_CLIENT_SECRET</strong> no arquivo <code>.env</code> (local)
+              ou nas variáveis de ambiente da Vercel. Por segurança, as credenciais não são mais digitadas no navegador.
+            </Alert>
+          ) : (
+            <>
+              <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                  1. Conectar banco ou cartão
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.8rem' }}>
+                  Abre a janela oficial da Pluggy para vincular Itaú, Nubank, XP etc.
+                  {items.length > 0 && ` Conexões salvas: ${items.length}.`}
+                </Typography>
                 <Button
-                  size="small"
-                  variant="text"
-                  color="inherit"
-                  onClick={() => setShowManualInputs(!showManualInputs)}
-                  startIcon={<SettingsSuggestIcon sx={{ fontSize: 16 }} />}
-                  sx={{ textTransform: 'none', fontSize: '0.75rem', opacity: 0.8 }}
+                  variant="outlined"
+                  color="primary"
+                  fullWidth
+                  onClick={handleOpenConnectWidget}
+                  disabled={widgetLoading}
+                  startIcon={widgetLoading ? <CircularProgress size={16} color="inherit" /> : <AccountBalanceIcon />}
                 >
-                  {showManualInputs ? 'Ocultar credenciais manuais' : 'Sobrescrever manualmente'}
+                  {widgetLoading ? 'Abrindo Pluggy Connect...' : 'Conectar Banco (Widget)'}
                 </Button>
               </Box>
 
-              {showManualInputs && (
-                <Box sx={{ mt: 2, pt: 2, borderTop: '1px dashed rgba(255, 255, 255, 0.1)' }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                    Preencha apenas se desejar usar credenciais diferentes das variáveis de ambiente:
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
-                    <TextField
-                      label="Client ID alternativo"
-                      fullWidth
-                      size="small"
-                      placeholder="Ex.: 34a2e58c-..."
-                      value={clientId}
-                      onChange={(e) => setClientId(e.target.value)}
-                    />
-                    <TextField
-                      label="Client Secret alternativo"
-                      type="password"
-                      fullWidth
-                      size="small"
-                      placeholder="Ex.: 9f12d8a1-..."
-                      value={clientSecret}
-                      onChange={(e) => setClientSecret(e.target.value)}
-                    />
-                  </Box>
-                </Box>
-              )}
-            </Box>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Alert severity="warning" sx={{ '& .MuiAlert-message': { fontSize: '0.82rem' } }}>
-                As variáveis <strong>PLUGGY_CLIENT_ID</strong> e <strong>PLUGGY_CLIENT_SECRET</strong> ainda não foram detectadas no servidor.
-                Você pode inseri-las abaixo ou colocá-las no arquivo <code>.env</code> / variáveis da Vercel para não precisar digitar:
-              </Alert>
-              <Box sx={{ display: 'flex', gap: 1.5, flexDirection: { xs: 'column', sm: 'row' } }}>
-                <TextField
-                  label="Pluggy Client ID"
-                  fullWidth
-                  size="small"
-                  placeholder="Ex.: 34a2e58c-..."
-                  value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
-                />
+              <Divider sx={{ my: 0.5 }}>
+                <Chip label="Sincronização" size="small" />
+              </Divider>
 
-                <TextField
-                  label="Pluggy Client Secret"
-                  type="password"
-                  fullWidth
-                  size="small"
-                  placeholder="Ex.: 9f12d8a1-..."
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
+              <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                  2. Período
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.8rem' }}>
+                  Lançamentos já importados são atualizados, não duplicados. Os que você excluiu não voltam.
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1 }}>
+                  {PERIODS.map(opt => {
+                    const isSelected = syncPeriod === opt.value;
+                    return (
+                      <Button
+                        key={opt.value}
+                        variant={isSelected ? 'contained' : 'outlined'}
+                        color={isSelected ? 'secondary' : 'inherit'}
+                        onClick={() => setSyncPeriod(opt.value)}
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          py: 1,
+                          px: 1,
+                          borderRadius: 2,
+                          borderColor: isSelected ? 'secondary.main' : 'divider',
+                          textTransform: 'none'
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.82rem' }}>
+                          {opt.label}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: '0.68rem', opacity: 0.7 }}>
+                          {opt.desc}
+                        </Typography>
+                      </Button>
+                    );
+                  })}
+                </Box>
+              </Box>
+
+              <Box sx={{ bgcolor: 'rgba(239, 68, 68, 0.04)', p: 1.5, borderRadius: 2, border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={clearBeforeSync}
+                      onChange={(e) => setClearBeforeSync(e.target.checked)}
+                      color="error"
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight={600} color={clearBeforeSync ? 'error.light' : 'text.primary'}>
+                        Limpar lançamentos e contas antes de importar
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Só apaga depois que os dados do banco forem baixados com sucesso.
+                      </Typography>
+                    </Box>
+                  }
                 />
               </Box>
-            </Box>
+            </>
           )}
-
-          <Divider sx={{ my: 0.5 }}>
-            <Chip label="Conexão & Sincronização" size="small" />
-          </Divider>
-
-          {/* Botão de Conectar Banco diretamente pelo Widget */}
-          <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-              1. Conectar Novo Banco ou Cartão
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.8rem' }}>
-              Abre a janela oficial da Pluggy para vincular seu Itaú, Nubank, Santander, XP, etc.
-            </Typography>
-            <Button
-              variant="outlined"
-              color="primary"
-              fullWidth
-              onClick={handleOpenConnectWidget}
-              disabled={widgetLoading || (!serverConfigured && (!clientId.trim() || !clientSecret.trim()))}
-              startIcon={widgetLoading ? <CircularProgress size={16} color="inherit" /> : <AccountBalanceIcon />}
-            >
-              {widgetLoading ? 'Abrindo Pluggy Connect...' : 'Conectar Banco no App (Widget)'}
-            </Button>
-          </Box>
-
-          {/* Campo de Conexões Conectadas (Item IDs) */}
-          <Box>
-            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-              2. Conexões Conectadas (Item IDs)
-            </Typography>
-            <TextField
-              label="Item IDs conectados (opcional se já sincronizado)"
-              fullWidth
-              size="small"
-              placeholder="Ex.: a0922d6f-2007-4169-a181-..., b123..."
-              value={itemId}
-              onChange={(e) => setItemId(e.target.value)}
-              helperText="Preenchido automaticamente ao conectar pelo widget acima, ou deixe em branco para sincronizar todas as contas já vinculadas."
-            />
-          </Box>
-
-          {/* Seletor de Período de Sincronização */}
-          <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-              3. Período de Sincronização
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.8rem' }}>
-              Escolha o intervalo para evitar puxar transações duplicadas ou que você já excluiu:
-            </Typography>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr 1fr' }, gap: 1 }}>
-              {[
-                { value: '24h', label: 'Últimas 24h', desc: 'Apenas hoje' },
-                { value: '7d', label: 'Últimos 7 dias', desc: 'Recentes' },
-                { value: '30d', label: 'Últimos 30 dias', desc: 'Mês atual' },
-                { value: 'all', label: 'Completo', desc: 'Todo o histórico' }
-              ].map(opt => {
-                const isSelected = syncPeriod === opt.value;
-                return (
-                  <Button
-                    key={opt.value}
-                    variant={isSelected ? 'contained' : 'outlined'}
-                    color={isSelected ? 'secondary' : 'inherit'}
-                    onClick={() => setSyncPeriod(opt.value)}
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      py: 1,
-                      px: 1,
-                      borderRadius: 2,
-                      borderColor: isSelected ? 'secondary.main' : 'divider',
-                      textTransform: 'none'
-                    }}
-                  >
-                    <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.82rem' }}>
-                      {opt.label}
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontSize: '0.68rem', opacity: 0.7 }}>
-                      {opt.desc}
-                    </Typography>
-                  </Button>
-                );
-              })}
-            </Box>
-          </Box>
         </DialogContent>
 
         <DialogActions sx={{ px: 2.5, py: 2 }}>
@@ -389,10 +221,10 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess, currentMonth =
             type="submit"
             variant="contained"
             color="secondary"
-            disabled={loading}
-            startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
+            disabled={!configured || sync.isPending}
+            startIcon={sync.isPending ? <CircularProgress size={16} color="inherit" /> : <SyncIcon />}
           >
-            {loading ? 'Puxando Faturas...' : syncPeriod === '24h' ? 'Sincronizar (Últimas 24h)' : syncPeriod === '7d' ? 'Sincronizar (Últimos 7 dias)' : 'Sincronizar Faturas'}
+            {sync.isPending ? 'Sincronizando...' : 'Sincronizar'}
           </Button>
         </DialogActions>
       </form>

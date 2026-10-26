@@ -2,8 +2,12 @@ node_modules
 client/node_modules
 .env
 .env.local
+.env.vercel
 .DS_Store
 dist
 client/dist
 *.tmp
 .vercel
+
+# Dados financeiros pessoais: nunca versionar
+server/data/

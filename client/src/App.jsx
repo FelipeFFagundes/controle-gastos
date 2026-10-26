@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ThemeProvider,
   CssBaseline,
@@ -20,9 +20,8 @@ import {
   BottomNavigationAction,
   Paper,
   Fab,
-  Grid,
-  useMediaQuery,
-  Chip
+  Chip,
+  CircularProgress
 } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -44,45 +43,56 @@ import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { PluggySyncModal } from './components/PluggySyncModal';
 import { AccountManagementModal } from './components/AccountManagementModal';
 import { PinLockScreen } from './components/PinLockScreen';
-import { getLocalDb, saveLocalDb, computeMonthData, computeInstallments } from './storage';
-import { defaultInitialData } from './initialData';
+import { api, clearToken, setUnauthorizedHandler } from './api';
+import { addMonths, currentMonth as getCurrentMonth, formatMonthTitle } from './months';
+import {
+  useAccounts,
+  useCategories,
+  useDeleteAccount,
+  useDeleteTransaction,
+  useInstallments,
+  useMonthData,
+  useMonths,
+  useResetData,
+  useSaveAccount,
+  useSaveTransaction,
+  useSetSurplus,
+  useTogglePaid
+} from './queries';
 
-// Helper para obter token salvo válido (30 dias)
-function getValidAuthToken() {
-  try {
-    const token = localStorage.getItem('app_auth_token');
-    const expiry = Number(localStorage.getItem('app_auth_expiry') || 0);
-    if (token && expiry && Date.now() < expiry) {
-      return token;
+const fmtBRL = (value) => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+// Estado da autenticação: 'checking' | 'locked' | 'open' | 'offline'
+function useAuthGate() {
+  const [state, setState] = useState('checking');
+  const [pinRequired, setPinRequired] = useState(false);
+
+  const check = async () => {
+    setState('checking');
+    try {
+      const status = await api.authStatus();
+      setPinRequired(status.pinRequired);
+      setState(status.authenticated ? 'open' : 'locked');
+    } catch {
+      setState('offline');
     }
-    // Token expirado ou inexistente
-    localStorage.removeItem('app_auth_token');
-    localStorage.removeItem('app_auth_expiry');
-  } catch (e) {
-    console.error('Erro ao verificar token:', e);
-  }
-  return null;
+  };
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setState('locked'));
+    check();
+  }, []);
+
+  return { state, pinRequired, check, unlock: () => setState('open'), lock: () => setState('locked') };
 }
 
 export default function App() {
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const auth = useAuthGate();
+  const enabled = auth.state === 'open';
+  const isPinRequired = auth.pinRequired;
 
-  // Estado de Autenticação por PIN
-  const [authToken, setAuthToken] = useState(getValidAuthToken);
-  const [isPinRequired, setIsPinRequired] = useState(null); // null: checando, true: precisa, false: liberado
-
-  const [currentMonth, setCurrentMonth] = useState('2026-10');
-  const [availableMonths, setAvailableMonths] = useState(['2026-10']);
-  
-  // Carrega instantaneamente do storage local (0ms, sem depender de rede)
-  const initialLocalDb = getLocalDb();
-  const initialMonthData = computeMonthData(initialLocalDb, '2026-10');
-  const initialInstallments = computeInstallments(initialLocalDb, '2026-10');
-
-  const [data, setData] = useState(initialMonthData);
-  const [installments, setInstallments] = useState(initialInstallments);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState(0); // 0: dashboard, 1: installments
+  const [currentMonth, setCurrentMonth] = useState(getCurrentMonth);
+  const [activeTab, setActiveTab] = useState(0); // 0: visão do mês, 1: parcelamentos
   const [selectedAccountFilter, setSelectedAccountFilter] = useState('');
 
   // Modais
@@ -91,447 +101,136 @@ export default function App() {
   const [isAccountsModalOpen, setIsAccountsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
-  // Snackbar / Feedback
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const showToast = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
+  const showError = (err) => showToast(err?.message || 'Algo deu errado.', 'error');
+  const handleCloseSnackbar = () => setSnackbar(prev => ({ ...prev, open: false }));
 
-  const showToast = (message, severity = 'success') => {
-    setSnackbar({ open: true, message, severity });
+  // Dados: o servidor é a fonte única de verdade.
+  const monthsQuery = useMonths(enabled);
+  const monthQuery = useMonthData(currentMonth, enabled);
+  const installmentsQuery = useInstallments(currentMonth, enabled);
+  const accountsQuery = useAccounts(enabled);
+  const categoriesQuery = useCategories(enabled);
+
+  const saveTransaction = useSaveTransaction();
+  const deleteTransaction = useDeleteTransaction();
+  const togglePaid = useTogglePaid(currentMonth);
+  const setSurplus = useSetSurplus(currentMonth);
+  const saveAccount = useSaveAccount();
+  const deleteAccount = useDeleteAccount();
+  const resetData = useResetData();
+
+  const installments = installmentsQuery.data || [];
+  const data = {
+    transactions: monthQuery.data?.transactions || [],
+    summary: monthQuery.data?.summary,
+    accounts: accountsQuery.data || [],
+    categories: categoriesQuery.data || []
   };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar(prev => ({ ...prev, open: false }));
-  };
-
-  // Helper para requisições autenticadas
-  const authFetch = (url, options = {}) => {
-    const headers = {
-      ...(options.headers || {})
-    };
-    const token = authToken || getValidAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    return fetch(url, { ...options, headers });
-  };
-
-  // Verificar status do PIN no servidor
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        const token = getValidAuthToken();
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await fetch('/api/auth/status', { headers });
-        if (res.ok) {
-          const json = await res.json();
-          setIsPinRequired(json.pinRequired);
-          if (json.pinRequired && !json.authenticated) {
-            setAuthToken(null);
-            localStorage.removeItem('app_auth_token');
-            localStorage.removeItem('app_auth_expiry');
-          } else if (token) {
-            setAuthToken(token);
-          }
-        } else {
-          // Servidor offline ou sem auth
-          setIsPinRequired(false);
-        }
-      } catch (e) {
-        // Modo offline / local
-        setIsPinRequired(false);
-      }
-    };
-    checkAuthStatus();
-  }, []);
-
-  const handleUnlock = (newToken) => {
-    setAuthToken(newToken);
-    showToast('PIN autenticado com sucesso!');
-    fetchMonths();
-    fetchData('2026-10');
-  };
+  const availableMonths = Array.from(new Set([...(monthsQuery.data || []), currentMonth])).sort();
+  const loadError = monthQuery.error || accountsQuery.error;
 
   const handleLockApp = () => {
-    localStorage.removeItem('app_auth_token');
-    localStorage.removeItem('app_auth_expiry');
-    setAuthToken(null);
+    clearToken();
+    auth.lock();
     showToast('Aplicativo bloqueado com segurança.', 'info');
   };
 
-  // Carrega meses disponíveis
-  const fetchMonths = async () => {
-    try {
-      const res = await authFetch('/api/months');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.months && json.months.length > 0) {
-          setAvailableMonths(json.months);
-          return;
-        }
-      }
-    } catch (err) {
-      // Ignora erro silenciosamente para usar local
-    }
-    // Fallback local
-    const db = getLocalDb();
-    const monthsSet = new Set((db.transactions || []).map(t => t.month));
-    monthsSet.add('2026-10');
-    setAvailableMonths(Array.from(monthsSet).sort());
+  const changeMonth = (direction) => setCurrentMonth(m => addMonths(m, direction));
+  const handleSelectMonth = (month) => setCurrentMonth(month);
+
+  const handleSaveTransaction = (formData) => {
+    const id = editingTransaction?.id;
+    saveTransaction.mutate({ id, data: formData }, {
+      onSuccess: () => {
+        showToast(id ? 'Lançamento atualizado!' : 'Lançamento registrado!');
+        setIsModalOpen(false);
+        setEditingTransaction(null);
+      },
+      onError: showError
+    });
   };
 
-  // Carrega dados do mês (híbrido: local imediato + sincronização com API)
-  const fetchData = async (month) => {
-    const targetMonth = month || currentMonth;
-    // 1. Atualiza imediatamente a partir do banco local
-    const db = getLocalDb();
-    setData(computeMonthData(db, targetMonth));
-    setInstallments(computeInstallments(db, targetMonth));
+  const handleTogglePaid = (id) => togglePaid.mutate(id, { onError: showError });
 
-    // 2. Tenta sincronizar com o backend
-    try {
-      const [resData, resInst] = await Promise.all([
-        authFetch(`/api/data?month=${targetMonth}`),
-        authFetch(`/api/installments?month=${targetMonth}`)
-      ]);
-
-      if (resData.ok && resInst.ok) {
-        const jsonData = await resData.json();
-        const jsonInst = await resInst.json();
-
-        // Se o servidor retornou dados válidos
-        if (jsonData.transactions) {
-          setData(jsonData);
-          setInstallments(jsonInst.installments || []);
-          // Atualiza o banco local com todos os dados mais recentes do servidor
-          if (jsonData.allTransactions) {
-            db.transactions = jsonData.allTransactions;
-          }
-          if (jsonData.accounts) {
-            db.accounts = jsonData.accounts;
-          }
-          if (jsonData.categories) {
-            db.categories = jsonData.categories;
-          }
-          if (jsonData.customSurplusTarget !== undefined) {
-            if (!db.customSurplus) db.customSurplus = {};
-            if (jsonData.customSurplusTarget !== null) {
-              db.customSurplus[targetMonth] = jsonData.customSurplusTarget;
-            } else {
-              delete db.customSurplus[targetMonth];
-            }
-          }
-          saveLocalDb(db);
-        }
-      }
-    } catch (err) {
-      console.log('Operando em modo local:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (isPinRequired === false || authToken) {
-      fetchMonths();
-      fetchData('2026-10');
-    }
-  }, [authToken, isPinRequired]);
-
-  // Navegar entre meses
-  const changeMonth = (direction) => {
-    const [year, month] = currentMonth.split('-').map(Number);
-    const date = new Date(year, month - 1 + direction, 1);
-    const newMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    setCurrentMonth(newMonth);
-    fetchData(newMonth);
-  };
-
-  const handleSelectMonth = (newMonth) => {
-    setCurrentMonth(newMonth);
-    fetchData(newMonth);
-  };
-
-  const formatMonthTitle = (monthStr) => {
-    const [year, month] = monthStr.split('-').map(Number);
-    const date = new Date(year, month - 1, 1);
-    const monthName = date.toLocaleDateString('pt-BR', { month: 'long' });
-    return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`;
-  };
-
-  // Helper para adicionar meses (YYYY-MM)
-  const addMonths = (monthStr, count) => {
-    const [year, month] = monthStr.split('-').map(Number);
-    const date = new Date(year, month - 1 + count, 1);
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  };
-
-  // Salvar transação (local imediato + API em paralelo)
-  const handleSaveTransaction = async (formData) => {
-    const db = getLocalDb();
-
-    if (editingTransaction) {
-      const idx = db.transactions.findIndex(t => t.id === editingTransaction.id);
-      if (idx !== -1) {
-        db.transactions[idx] = {
-          ...db.transactions[idx],
-          ...formData,
-          month: formData.month || (formData.date ? formData.date.substring(0, 7) : db.transactions[idx].month)
-        };
-      }
-      showToast('Lançamento atualizado!');
-      // Background API sync
-      authFetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      }).catch(() => {});
-    } else {
-      const {
-        description,
-        amount,
-        type,
-        category,
-        account,
-        date,
-        paid = false,
-        isInstallment = false,
-        currentInstallment = 1,
-        totalInstallments = 1,
-        generateFutureMonths = true
-      } = formData;
-
-      const baseDate = new Date(date);
-      const baseMonth = formData.month || date.substring(0, 7);
-      const numAmount = Number(amount);
-
-      if (isInstallment && totalInstallments > 1 && generateFutureMonths) {
-        const startNum = Number(currentInstallment);
-        const totalNum = Number(totalInstallments);
-
-        for (let i = startNum; i <= totalNum; i++) {
-          const monthOffset = i - startNum;
-          const targetMonth = addMonths(baseMonth, monthOffset);
-          const targetDate = new Date(baseDate);
-          targetDate.setMonth(targetDate.getMonth() + monthOffset);
-          const formattedDate = targetDate.toISOString().split('T')[0];
-
-          db.transactions.push({
-            id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-            description: description.trim(),
-            amount: numAmount,
-            type: type || 'expense',
-            category,
-            account,
-            date: formattedDate,
-            month: targetMonth,
-            paid: i === startNum ? Boolean(paid) : false,
-            installment: {
-              current: i,
-              total: totalNum
-            }
-          });
-        }
-      } else {
-        db.transactions.push({
-          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-          description: description.trim(),
-          amount: numAmount,
-          type: type || 'expense',
-          category,
-          account,
-          date,
-          month: baseMonth,
-          paid: Boolean(paid),
-          installment: isInstallment && totalInstallments > 1 ? {
-            current: Number(currentInstallment),
-            total: Number(totalInstallments)
-          } : null
-        });
-      }
-
-      showToast('Nova compra registrada!');
-      // Background API sync
-      authFetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      }).catch(() => {});
-    }
-
-    saveLocalDb(db);
-    setIsModalOpen(false);
-    setEditingTransaction(null);
-    fetchMonths();
-    fetchData(currentMonth);
-  };
-
-  // Alternar status pago/pendente (local imediato + await da API)
-  const handleTogglePaid = async (id) => {
-    const db = getLocalDb();
-    const tx = (db.transactions || []).find(t => t.id === id);
-    if (tx) {
-      tx.paid = !tx.paid;
-      saveLocalDb(db);
-      setData(computeMonthData(db, currentMonth));
-      try {
-        await authFetch(`/api/transactions/${id}/toggle-paid`, { method: 'PATCH' });
-      } catch (e) {
-        console.warn('Erro ao alternar status no servidor:', e);
-      }
-      fetchData(currentMonth);
-    }
-  };
-
-  // Deletar transação (local imediato + await da API antes do re-fetch)
-  const handleDeleteTransaction = async (id) => {
+  const handleDeleteTransaction = (id) => {
     if (!window.confirm('Tem certeza que deseja remover este lançamento?')) return;
-    const db = getLocalDb();
-    db.transactions = (db.transactions || []).filter(t => t.id !== id);
-    saveLocalDb(db);
-    
-    // Atualiza imediatamente a UI a partir do banco local
-    setData(computeMonthData(db, currentMonth));
-    setInstallments(computeInstallments(db, currentMonth));
-    showToast('Lançamento removido.');
-
-    // Aguarda a exclusão no backend antes de refazer a sincronização geral para evitar restauração indevida
-    try {
-      await authFetch(`/api/transactions/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.warn('Erro ao deletar transação no servidor:', e);
-    }
-    fetchMonths();
-    fetchData(currentMonth);
+    deleteTransaction.mutate(id, { onSuccess: () => showToast('Lançamento removido.'), onError: showError });
   };
 
-  // Limpar todas as transações para começar do zero com a Pluggy
-  const handleClearAllTransactions = async () => {
-    if (!window.confirm('Deseja limpar todos os lançamentos para começar do zero com os dados bancários reais da Pluggy? Categorias e contas serão preservadas.')) return;
-    const db = getLocalDb();
-    db.transactions = [];
-    saveLocalDb(db);
-    // Limpa imediatamente lançamentos e parcelamentos na interface
-    setData(computeMonthData(db, currentMonth));
-    setInstallments([]);
-    showToast('Lançamentos e parcelamentos limpos! Pronto para sincronizar da Pluggy.');
-    // Aguarda a limpeza no backend antes de re-sincronizar (evita restaurar dados antigos)
-    try {
-      await authFetch('/api/clear', { method: 'POST' });
-    } catch (e) {
-      console.warn('Erro ao limpar dados no servidor:', e);
-    }
-    fetchMonths();
-    fetchData(currentMonth);
+  const handleClearAllTransactions = () => {
+    if (!window.confirm('Apagar TODOS os lançamentos e cartões/contas? Categorias e metas são preservadas. Não dá para desfazer.')) return;
+    resetData.mutate('clear', {
+      onSuccess: () => showToast('Lançamentos e cartões/contas apagados.'),
+      onError: showError
+    });
   };
 
-  // Atualizar meta de sobra prevista (aumentar/diminuir ou definir valor manual)
-  const handleUpdateCustomSurplus = async (targetVal) => {
-    const db = getLocalDb();
-    if (!db.customSurplus) db.customSurplus = {};
-    if (targetVal === null || targetVal === undefined) {
-      delete db.customSurplus[currentMonth];
-      showToast('Sobra prevista resetada para o cálculo padrão.');
-    } else {
-      db.customSurplus[currentMonth] = Number(targetVal);
-      showToast(`Meta de sobra ajustada para R$ ${Number(targetVal).toFixed(2)}`);
-    }
-    saveLocalDb(db);
-    fetchData(currentMonth);
-
-    // Salva no backend
-    authFetch('/api/custom-surplus', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ month: currentMonth, target: targetVal })
-    }).catch(() => {});
-  };
-
-  // Salvar conta/cartão (novo ou editado)
-  const handleSaveAccount = async (accData) => {
-    const db = getLocalDb();
-    if (!db.accounts) db.accounts = [];
-
-    if (accData.id) {
-      // Edição
-      const idx = db.accounts.findIndex(a => a.id === accData.id);
-      if (idx !== -1) {
-        const oldName = db.accounts[idx].name;
-        db.accounts[idx] = { ...db.accounts[idx], ...accData };
-        // Atualiza transações que usavam o nome anterior
-        if (oldName !== accData.name) {
-          db.transactions.forEach(t => {
-            if (t.account === oldName) t.account = accData.name;
-          });
-        }
-        showToast(`Cartão/Conta "${accData.name}" atualizado!`);
-      }
-      saveLocalDb(db);
-      setData(computeMonthData(db, currentMonth));
-      await authFetch(`/api/accounts/${accData.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(accData)
-      }).catch(() => {});
-    } else {
-      // Criação
-      const newAcc = {
-        id: `acc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        name: accData.name,
-        type: accData.type || 'credit_card',
-        color: accData.color || '#3b82f6',
-        closingDay: accData.closingDay || null,
-        billingCycle: accData.billingCycle || 'same_month',
-        monthOffset: accData.monthOffset || 0
-      };
-      db.accounts.push(newAcc);
-      showToast(`Cartão/Conta "${accData.name}" adicionado!`);
-      saveLocalDb(db);
-      setData(computeMonthData(db, currentMonth));
-      await authFetch('/api/accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newAcc)
-      }).catch(() => {});
-    }
-
-    fetchData(currentMonth);
-  };
-
-  // Excluir conta/cartão
-  const handleDeleteAccount = async (id, name) => {
-    if (!window.confirm(`Tem certeza que deseja remover o cartão/conta "${name}"?`)) return;
-    const db = getLocalDb();
-    db.accounts = (db.accounts || []).filter(a => a.id !== id);
-    saveLocalDb(db);
-    // Atualiza o estado da interface imediatamente sem aguardar
-    setData(computeMonthData(db, currentMonth));
-    showToast(`Conta/Cartão "${name}" removido.`);
-    
-    // Aguarda a exclusão no backend antes de refazer o fetch geral
-    try {
-      await authFetch(`/api/accounts/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.warn('Erro ao deletar no servidor:', e);
-    }
-    fetchData(currentMonth);
-  };
-
-  // Restaurar dados originais da planilha
   const handleResetSeed = () => {
-    if (!window.confirm('Restaurar os dados originais da planilha de Outubro 2026?')) return;
-    saveLocalDb(defaultInitialData);
-    showToast('Dados restaurados com base na Planilha Controle!');
-    setCurrentMonth('2026-10');
-    fetchMonths();
-    fetchData('2026-10');
-    authFetch('/api/reset-seed', { method: 'POST' }).catch(() => {});
+    if (!window.confirm('Substituir TODOS os dados atuais pelos dados de exemplo da planilha de Outubro/2026?')) return;
+    resetData.mutate('seed', {
+      onSuccess: () => {
+        setCurrentMonth('2026-10');
+        showToast('Dados de exemplo restaurados.');
+      },
+      onError: showError
+    });
   };
 
-  // Se o PIN for obrigatório e o usuário ainda não tiver autenticado
-  if (isPinRequired && !authToken) {
+  const handleUpdateCustomSurplus = (target) => {
+    setSurplus.mutate(target, {
+      onSuccess: () => showToast(target === null ? 'Sobra prevista voltou ao cálculo padrão.' : `Meta de sobra ajustada para ${fmtBRL(target)}`),
+      onError: showError
+    });
+  };
+
+  const handleSaveAccount = ({ id, ...accData }) => {
+    saveAccount.mutate({ id, data: accData }, {
+      onSuccess: () => showToast(`Cartão/Conta "${accData.name}" ${id ? 'atualizado' : 'adicionado'}!`),
+      onError: showError
+    });
+  };
+
+  const handleDeleteAccount = (id, name) => {
+    if (!window.confirm(`Remover o cartão/conta "${name}"?`)) return;
+    const onSuccess = () => showToast(`Conta/Cartão "${name}" removido.`);
+    deleteAccount.mutate({ id }, {
+      onSuccess,
+      onError: (err) => {
+        // Conta com lançamentos: o servidor exige confirmação explícita para apagá-los junto.
+        if (err.status !== 409) return showError(err);
+        if (window.confirm(`${err.message}\n\nExcluir a conta E os ${err.body.transactionCount} lançamento(s)?`)) {
+          deleteAccount.mutate({ id, withTransactions: true }, { onSuccess, onError: showError });
+        }
+      }
+    });
+  };
+
+  if (auth.state === 'checking' || auth.state === 'offline') {
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <PinLockScreen onUnlock={handleUnlock} />
+        <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 3, textAlign: 'center' }}>
+          {auth.state === 'checking' ? (
+            <CircularProgress />
+          ) : (
+            <>
+              <Typography variant="h6">Sem conexão com o servidor</Typography>
+              <Typography variant="body2" color="text.secondary">Verifique se o servidor está rodando e tente novamente.</Typography>
+              <Button variant="contained" onClick={auth.check}>Tentar novamente</Button>
+            </>
+          )}
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  if (auth.state === 'locked') {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <PinLockScreen onUnlock={() => { auth.unlock(); showToast('PIN autenticado com sucesso!'); }} />
       </ThemeProvider>
     );
   }
@@ -540,7 +239,6 @@ export default function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
 
-      {/* Snackbar de Notificações */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={3500}
@@ -551,6 +249,12 @@ export default function App() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {loadError && (
+        <Alert severity="error" sx={{ borderRadius: 0 }}>
+          Erro ao carregar dados: {loadError.message}
+        </Alert>
+      )}
 
       {/* Barra de Navegação Superior (AppBar) */}
       <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
@@ -858,8 +562,8 @@ export default function App() {
           setEditingTransaction(null);
         }}
         onSave={handleSaveTransaction}
-        categories={data.categories || []}
-        accounts={data.accounts || []}
+        categories={data.categories}
+        accounts={data.accounts}
         currentMonth={currentMonth}
         editTransaction={editingTransaction}
       />
@@ -867,20 +571,13 @@ export default function App() {
       <PluggySyncModal
         isOpen={isPluggyModalOpen}
         onClose={() => setIsPluggyModalOpen(false)}
-        currentMonth={currentMonth}
-        onSyncSuccess={(syncResult) => {
-          const msg = syncResult?.message || 'Bancos sincronizados com sucesso!';
-          showToast(msg);
-          fetchMonths().then(() => {
-            fetchData(currentMonth);
-          });
-        }}
+        onSyncSuccess={(result) => showToast(result?.message || 'Bancos sincronizados!')}
       />
 
       <AccountManagementModal
         isOpen={isAccountsModalOpen}
         onClose={() => setIsAccountsModalOpen(false)}
-        accounts={data.accounts || []}
+        accounts={data.accounts}
         onSaveAccount={handleSaveAccount}
         onDeleteAccount={handleDeleteAccount}
       />

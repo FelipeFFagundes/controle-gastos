@@ -33,8 +33,6 @@ export function SummaryCards({
   onUpdateCustomSurplus,
   onOpenManageAccounts
 }) {
-  if (!summary) return null;
-
   const {
     totalIncome = 0,
     totalExpense = 0,
@@ -44,7 +42,7 @@ export function SummaryCards({
     availableToSpend = 0,
     customSurplusTarget = null,
     expensesByAccount = {}
-  } = summary;
+  } = summary || {};
 
   const [isEditingSurplus, setIsEditingSurplus] = useState(false);
   const [surplusInput, setSurplusInput] = useState('');
@@ -54,6 +52,9 @@ export function SummaryCards({
   useEffect(() => {
     setSurplusInput(displayedSurplus !== undefined ? String(displayedSurplus) : '');
   }, [displayedSurplus, isEditingSurplus]);
+
+  // Só depois dos hooks: retornar antes deles muda a quantidade de hooks entre renders e quebra o React.
+  if (!summary) return null;
 
   const handleAdjustStep = (step) => {
     const current = customSurplusTarget !== null ? customSurplusTarget : netBalance;
