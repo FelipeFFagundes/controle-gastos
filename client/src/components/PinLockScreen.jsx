@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import BackspaceOutlinedIcon from '@mui/icons-material/BackspaceOutlined';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import { api, saveToken } from '../api';
 
 export function PinLockScreen({ onUnlock }) {
   const [pin, setPin] = useState(['', '', '', '', '', '']);
@@ -79,26 +79,11 @@ export function PinLockScreen({ onUnlock }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: fullPin })
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success && data.token) {
-        // Salva token e timestamp de validade (30 dias)
-        const expiryDate = Date.now() + 30 * 24 * 60 * 60 * 1000;
-        localStorage.setItem('app_auth_token', data.token);
-        localStorage.setItem('app_auth_expiry', String(expiryDate));
-        onUnlock(data.token);
-      } else {
-        triggerError(data.error || 'PIN incorreto. Tente novamente.');
-      }
+      const data = await api.login(fullPin);
+      saveToken(data.token, data.expiresAt);
+      onUnlock();
     } catch (err) {
-      console.error('Erro ao autenticar:', err);
-      triggerError('Erro de conexão com o servidor.');
+      triggerError(err.message || 'Erro de conexão com o servidor.');
     } finally {
       setLoading(false);
     }

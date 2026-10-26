@@ -1,23 +1,34 @@
 {
   "name": "controle-gastos",
   "version": "1.0.0",
-  "description": "Aplicativo Web para controle financeiro e despesas mensais",
-  "main": "server/index.js",
+  "description": "Controle financeiro e despesas mensais",
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
-    "server": "node server/index.js",
-    "client": "npm --prefix client run dev",
-    "build": "node scripts/build.js",
-    "vercel-build": "node scripts/build.js",
-    "build:client": "node scripts/build.js",
-    "dev": "node server/index.js"
+    "dev": "node --watch server/index.js",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client install && npm --prefix client run build",
+    "test": "node --test \"server/**/*.test.js\"",
+    "test:pg": "node scripts/test-pg.js",
+    "import:legacy": "node scripts/import-legacy.js"
   },
-  "keywords": ["finance", "gastos", "orcamento", "planilha"],
+  "keywords": [
+    "finance",
+    "gastos",
+    "orcamento",
+    "planilha"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.0.0"
+    "@libsql/client": "^0.15.15",
+    "express": "^5.0.0",
+    "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.12"
   }
 }

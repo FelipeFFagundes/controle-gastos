@@ -36,6 +36,10 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 
+// Transferências (pagamento de fatura, aplicação automática) não são gasto nem receita.
+const amountColor = (type) => type === 'income' ? 'secondary.main' : type === 'transfer' ? 'text.secondary' : 'error.main';
+const amountPrefix = (type) => type === 'income' ? '+ ' : type === 'transfer' ? '⇄ ' : '- ';
+
 export function TransactionList({
   transactions = [],
   accounts = [],
@@ -50,7 +54,7 @@ export function TransactionList({
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'expense' | 'income'
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'expense' | 'income' | 'transfer'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'paid' | 'pending'
   
   // Filtros avançados
@@ -159,6 +163,7 @@ export function TransactionList({
   const filteredTotal = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
       const val = Number(t.amount || 0);
+      if (t.type === 'transfer') return acc;
       return t.type === 'expense' ? acc - val : acc + val;
     }, 0);
   }, [filteredTransactions]);
@@ -228,6 +233,14 @@ export function TransactionList({
               color={typeFilter === 'income' ? 'secondary' : 'default'}
               variant={typeFilter === 'income' ? 'filled' : 'outlined'}
               onClick={() => setTypeFilter('income')}
+            />
+            <Chip
+              label="Transferências"
+              clickable
+              size="small"
+              color={typeFilter === 'transfer' ? 'info' : 'default'}
+              variant={typeFilter === 'transfer' ? 'filled' : 'outlined'}
+              onClick={() => setTypeFilter('transfer')}
             />
             <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
             <Chip
@@ -323,12 +336,9 @@ export function TransactionList({
                       <em>Todas as categorias</em>
                     </MenuItem>
                     {categories.map((c) => {
-                      const catName = typeof c === 'string' ? c : c?.name || '';
-                      const catKey = typeof c === 'string' ? c : c?.id || c?.name || Math.random();
-                      if (!catName) return null;
                       return (
-                        <MenuItem key={catKey} value={catName}>
-                          {catName}
+                        <MenuItem key={c.id} value={c.name}>
+                          {c.name}
                         </MenuItem>
                       );
                     })}
@@ -430,7 +440,6 @@ export function TransactionList({
         /* Versão Otimizada para Celular (Card List) */
         <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {filteredTransactions.map((tx) => {
-            const isIncome = tx.type === 'income';
             return (
               <Box
                 key={tx.id}
@@ -477,9 +486,9 @@ export function TransactionList({
                   <Typography
                     variant="body2"
                     fontWeight={700}
-                    color={isIncome ? 'secondary.main' : 'error.main'}
+                    color={amountColor(tx.type)}
                   >
-                    {isIncome ? '+ ' : '- '}{formatBRL(tx.amount)}
+                    {amountPrefix(tx.type)}{formatBRL(tx.amount)}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.5 }}>
                     <IconButton size="small" onClick={() => onEdit(tx)} sx={{ p: 0.5 }}>
@@ -534,8 +543,7 @@ export function TransactionList({
             </TableHead>
             <TableBody>
               {filteredTransactions.map((tx) => {
-                const isIncome = tx.type === 'income';
-                return (
+                    return (
                   <TableRow key={tx.id} hover sx={{ opacity: tx.paid ? 0.9 : 1 }}>
                     <TableCell align="center">
                       <Checkbox
@@ -588,9 +596,9 @@ export function TransactionList({
                       <Typography
                         variant="body2"
                         fontWeight={700}
-                        color={isIncome ? 'secondary.main' : 'error.main'}
+                        color={amountColor(tx.type)}
                       >
-                        {isIncome ? '+ ' : '- '}{formatBRL(tx.amount)}
+                        {amountPrefix(tx.type)}{formatBRL(tx.amount)}
                       </Typography>
                     </TableCell>
 

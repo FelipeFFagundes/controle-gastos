@@ -1,3 +1,4 @@
-import { app } from '../server/index.js';
+// Função serverless da Vercel. O frontend é servido estaticamente pela própria Vercel.
+import { createApp } from '../server/app.js';
 
-export default app;
+export default createApp({ serveClient: false });
