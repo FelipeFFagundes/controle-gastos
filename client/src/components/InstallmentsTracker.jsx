@@ -362,7 +362,7 @@ export function InstallmentsTracker({
                 <Chip
                   label={`${group.items.length} ${group.items.length === 1 ? 'compra' : 'compras'}`}
                   size="small"
-                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }}
+                  sx={{ height: 20, fontSize: '0.8125rem', fontWeight: 600 }}
                 />
               </Box>
 
@@ -465,7 +465,7 @@ function InstallmentRowItem({
                 size="small"
                 sx={{
                   height: 18,
-                  fontSize: '0.65rem',
+                  fontSize: '0.8125rem',
                   fontWeight: 600,
                   borderColor: accountColor,
                   color: accountColor
@@ -480,7 +480,7 @@ function InstallmentRowItem({
               <Chip
                 label={item.category}
                 size="small"
-                sx={{ height: 20, fontSize: '0.7rem', bgcolor: 'rgba(255, 255, 255, 0.06)' }}
+                sx={{ height: 20, fontSize: '0.8125rem', bgcolor: 'rgba(255, 255, 255, 0.06)' }}
               />
             )}
 
@@ -490,7 +490,7 @@ function InstallmentRowItem({
                 label={projectionText}
                 size="small"
                 color="success"
-                sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }}
+                sx={{ height: 20, fontSize: '0.8125rem', fontWeight: 700 }}
               />
             ) : (
               <Typography variant="caption" color="text.secondary" fontWeight={500}>
@@ -535,7 +535,7 @@ function InstallmentRowItem({
         >
           {/* Valor da Parcela Deste Mês */}
           <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.8125rem', fontWeight: 600 }}>
               PARCELA NESTE MÊS
             </Typography>
             <Typography variant="body1" fontWeight={800} color="warning.main">
@@ -545,7 +545,7 @@ function InstallmentRowItem({
 
           {/* Saldo Restante */}
           <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.8125rem', fontWeight: 600 }}>
               SALDO A PAGAR
             </Typography>
             <Typography
@@ -556,7 +556,7 @@ function InstallmentRowItem({
               {isFinalMonth ? 'Quita agora' : formatBRL(item.remainingDebt)}
             </Typography>
             {!isFinalMonth && (
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.8125rem' }}>
                 {remaining}x de {formatBRL(item.amountPerInstallment)}
               </Typography>
             )}
@@ -645,7 +645,7 @@ function InstallmentRowItem({
                   >
                     {parcelNum}/{total} {isCurrent ? '★ Atual' : isPast ? '✓ Pago' : ''}
                   </Typography>
-                  <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                  <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.8125rem' }}>
                     {formatMonthShort(estimatedMonth)}
                   </Typography>
                   <Typography variant="caption" display="block" fontWeight={700} sx={{ mt: 0.25 }}>

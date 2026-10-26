@@ -55,6 +55,13 @@ const MIGRATIONS = [
       item_id TEXT PRIMARY KEY,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`
+  ],
+  [
+    // Categoria escolhida pelo usuário para cada loja (chave de domain/merchant.js).
+    `CREATE TABLE category_rules (
+      merchant_key TEXT PRIMARY KEY,
+      category TEXT NOT NULL
+    )`
   ]
 ];
 

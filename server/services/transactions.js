@@ -2,13 +2,16 @@ import crypto from 'crypto';
 import * as transactionsRepo from '../repositories/transactions.js';
 import * as accountsRepo from '../repositories/accounts.js';
 import * as settingsRepo from '../repositories/settings.js';
+import * as categoryRulesRepo from '../repositories/categoryRules.js';
 import { billingMonth } from '../domain/billing.js';
 import { buildInstallmentSeries, isValidInstallment, summarizeInstallments } from '../domain/installments.js';
 import { currentMonth, isValidDate, isValidMonth } from '../domain/months.js';
 import { computeMonthSummary } from '../domain/summary.js';
+import { merchantKey } from '../domain/merchant.js';
 import { badRequest, notFound } from './errors.js';
 
 const TYPES = ['expense', 'income', 'transfer'];
+const UNCATEGORIZED = 'Outros';
 
 export async function getMonth(month) {
   assertMonth(month);
@@ -137,7 +140,25 @@ export async function update(id, input) {
     installmentGroup: data.installment ? (existing.installmentGroup || `grp-${crypto.randomUUID()}`) : null
   };
   await transactionsRepo.update(updated);
-  return transactionsRepo.getById(id);
+
+  const recategorized = updated.type === 'expense' && updated.category !== existing.category
+    ? await learnCategory(updated)
+    : 0;
+  return { transaction: await transactionsRepo.getById(id), recategorized };
+}
+
+// Lembra a categoria escolhida para a loja: vale para os próximos lançamentos da sincronização
+// e corrige agora os da mesma loja que ainda estão em "Outros". Devolve quantos foram corrigidos.
+async function learnCategory(tx) {
+  const key = merchantKey(tx.description);
+  if (!key) return 0;
+  await categoryRulesRepo.upsert(key, tx.category);
+  if (tx.category === UNCATEGORIZED) return 0;
+  const sameMerchant = (await transactionsRepo.listByCategory(UNCATEGORIZED))
+    .filter(t => t.id !== tx.id && merchantKey(t.description) === key)
+    .map(t => t.id);
+  await transactionsRepo.setCategory(sameMerchant, tx.category);
+  return sameMerchant.length;
 }
 
 export async function togglePaid(id) {

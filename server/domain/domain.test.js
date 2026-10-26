@@ -5,6 +5,7 @@ import { billingMonth } from './billing.js';
 import { buildInstallmentSeries, parseInstallmentFromDescription, stripInstallmentSuffix, summarizeInstallments } from './installments.js';
 import { computeMonthSummary } from './summary.js';
 import { classifyPluggyTransaction, mapPluggyCategory } from './pluggyMapping.js';
+import { merchantKey } from './merchant.js';
 
 test('addMonths atravessa a virada de ano', () => {
   assert.equal(addMonths('2026-11', 2), '2027-01');
@@ -104,4 +105,15 @@ test('mapPluggyCategory reconhece categorias em inglês da Pluggy', () => {
   assert.equal(mapPluggyCategory('Groceries'), 'Alimentação');
   assert.equal(mapPluggyCategory('Pharmacy'), 'Saúde & Farmácia');
   assert.equal(mapPluggyCategory(null), 'Outros');
+});
+
+test('merchantKey ignora data, hora, códigos e parcela para reconhecer a mesma loja', () => {
+  assert.equal(merchantKey('POP 21Out 08h50minSAO PAULO'), 'pop paulo');
+  assert.equal(merchantKey('POP 17Out 19h28minSAO PAULO'), 'pop paulo');
+  assert.equal(merchantKey('NATURA PAY*0061 2/4'), 'natura pay');
+  assert.equal(merchantKey('Farmácia São João'), 'farmacia sao joao');
+  assert.equal(merchantKey('AMAZON MARKETPLACE BR LTDA'), 'amazon marketplace br');
+  assert.equal(merchantKey('12345'), '');
+  assert.equal(merchantKey('Transferência enviada pelo Pix|Geraldo Dayrell Neto'), 'geraldo dayrell neto');
+  assert.equal(merchantKey('CFC DORNELLESPORTO01/02'), 'cfc dornellesporto');
 });

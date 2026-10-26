@@ -11,34 +11,48 @@ import {
   Select,
   MenuItem,
   FormControlLabel,
-  Checkbox,
+  Switch,
   Box,
-  Grid,
   Typography,
   InputAdornment,
-  ButtonGroup,
-  IconButton
+  ToggleButtonGroup,
+  ToggleButton,
+  IconButton,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import AddCircleIcon from '@mui/icons-material/AddCircle';
-import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import { addMonths, formatMonthTitle } from '../months';
+import { formatAmountInput, parseAmount } from '../format';
 
-// Dia 15 do mês exibido, ou hoje se for o mês atual.
+// Hoje, se o mês exibido for o atual; senão, dia 15 do mês exibido.
 function defaultDate(month) {
   const today = new Date();
   const todayMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   return month === todayMonth ? `${todayMonth}-${String(today.getDate()).padStart(2, '0')}` : `${month}-15`;
 }
 
+const TYPE_OPTIONS = [
+  { value: 'expense', label: 'Gasto', color: 'error' },
+  { value: 'income', label: 'Entrada', color: 'secondary' },
+  { value: 'transfer', label: 'Transferência', color: 'info' }
+];
+
 export function TransactionModal({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   categories = [],
   accounts = [],
   currentMonth,
-  editTransaction = null
+  editTransaction = null,
+  saving = false
 }) {
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('expense');
@@ -48,277 +62,176 @@ export function TransactionModal({
   const [month, setMonth] = useState('');
   const [paid, setPaid] = useState(false);
   const [isInstallment, setIsInstallment] = useState(false);
-  const [currentInstallment, setCurrentInstallment] = useState(1);
-  const [totalInstallments, setTotalInstallments] = useState(2);
+  const [currentInstallment, setCurrentInstallment] = useState('1');
+  const [totalInstallments, setTotalInstallments] = useState('2');
   const [generateFutureMonths, setGenerateFutureMonths] = useState(true);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (editTransaction) {
-      setDescription(editTransaction.description || '');
-      setAmount(editTransaction.amount ? String(editTransaction.amount) : '');
-      setType(editTransaction.type || 'expense');
-      setCategory(editTransaction.category || (categories[0]?.name || 'Outros'));
-      setAccountId(editTransaction.accountId || accounts[0]?.id || '');
-      setDate(editTransaction.date || `${currentMonth}-15`);
-      // Mês só vem preenchido se o usuário o fixou; senão o servidor calcula pela data e pelo cartão.
-      setMonth(editTransaction.monthLocked ? editTransaction.month : '');
-      setPaid(Boolean(editTransaction.paid));
-      if (editTransaction.installment) {
-        setIsInstallment(true);
-        setCurrentInstallment(editTransaction.installment.current || 1);
-        setTotalInstallments(editTransaction.installment.total || 2);
-        setGenerateFutureMonths(false);
-      } else {
-        setIsInstallment(false);
-        setCurrentInstallment(1);
-        setTotalInstallments(2);
-      }
-    } else {
-      setDescription('');
-      setAmount('');
-      setType('expense');
-      setCategory(categories[0]?.name || 'Outros');
-      setAccountId(accounts[0]?.id || '');
-      setDate(defaultDate(currentMonth));
-      setMonth('');
-      setPaid(false);
-      setIsInstallment(false);
-      setCurrentInstallment(1);
-      setTotalInstallments(2);
-      setGenerateFutureMonths(true);
-    }
+    if (!isOpen) return;
+    const tx = editTransaction;
+    setDescription(tx?.description || '');
+    setAmount(tx ? formatAmountInput(tx.amount) : '');
+    setType(tx?.type || 'expense');
+    setCategory(tx?.category || categories.find(c => c.name === 'Outros')?.name || categories[0]?.name || 'Outros');
+    setAccountId(tx?.accountId || accounts[0]?.id || '');
+    setDate(tx?.date || defaultDate(currentMonth));
+    // Mês só vem preenchido se o usuário o fixou; senão o servidor calcula pela data e pelo cartão.
+    setMonth(tx?.monthLocked ? tx.month : '');
+    setPaid(Boolean(tx?.paid));
+    setIsInstallment(Boolean(tx?.installment));
+    setCurrentInstallment(String(tx?.installment?.current || 1));
+    setTotalInstallments(String(tx?.installment?.total || 2));
+    setGenerateFutureMonths(!tx);
+    setErrors({});
   }, [editTransaction, isOpen, currentMonth, categories, accounts]);
 
   if (!isOpen) return null;
 
+  // Opções do mês da fatura: do mês anterior à compra até 4 meses depois.
+  const baseMonth = (date || defaultDate(currentMonth)).slice(0, 7);
+  const monthOptions = Array.from({ length: 6 }, (_, i) => addMonths(baseMonth, i - 1));
+  if (month && !monthOptions.includes(month)) monthOptions.push(month);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!description.trim() || !amount || !accountId) {
-      alert('Informe a descrição, o valor e a conta/cartão.');
-      return;
-    }
+    const value = parseAmount(amount);
+    const nextErrors = {};
+    if (!description.trim()) nextErrors.description = 'Informe a descrição.';
+    if (!Number.isFinite(value) || value <= 0) nextErrors.amount = 'Informe um valor maior que zero.';
+    if (!accountId) nextErrors.accountId = 'Escolha a conta ou cartão.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
 
-    const payload = {
+    onSave({
       description: description.trim(),
-      amount: parseFloat(amount),
+      amount: Math.round(value * 100) / 100,
       type,
       category: type === 'income' ? 'Salário & Entradas' : (category || 'Outros'),
       accountId,
       date,
-      month: month.trim() || null,
+      month: month || null,
       paid,
       isInstallment: type === 'expense' ? isInstallment : false,
       currentInstallment: parseInt(currentInstallment, 10),
       totalInstallments: parseInt(totalInstallments, 10),
       generateFutureMonths: type === 'expense' && isInstallment && !editTransaction ? generateFutureMonths : false
-    };
-
-    onSave(payload);
+    });
   };
 
+  const accent = TYPE_OPTIONS.find(o => o.value === type)?.color || 'primary';
+
   return (
-    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {editTransaction ? <EditIcon color="primary" /> : <AddCircleIcon color="primary" />}
+    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+        <DialogTitle sx={{ p: 1.5, pl: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6" fontWeight={700}>
-            {editTransaction ? 'Editar Lançamento' : 'Nova Compra / Lançamento'}
+            {editTransaction ? 'Editar lançamento' : 'Novo lançamento'}
           </Typography>
-        </Box>
-        <IconButton onClick={onClose} size="small">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
+          <IconButton onClick={onClose} aria-label="Fechar" sx={{ width: 44, height: 44 }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
 
-      <form onSubmit={handleSubmit}>
-        <DialogContent dividers sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          {/* Seletor Tipo: Despesa vs Receita */}
-          <ButtonGroup fullWidth variant="outlined" size="small">
-            <Button
-              variant={type === 'expense' ? 'contained' : 'outlined'}
-              color="error"
-              onClick={() => setType('expense')}
-              sx={{ fontWeight: 600 }}
-            >
-              Gasto no Cartão / Despesa
-            </Button>
-            <Button
-              variant={type === 'income' ? 'contained' : 'outlined'}
-              color="secondary"
-              onClick={() => {
-                setType('income');
-                if (!category) setCategory('Salário & Entradas');
-              }}
-              sx={{ fontWeight: 600 }}
-            >
-              Salário / Receita Prevista
-            </Button>
-            <Button
-              variant={type === 'transfer' ? 'contained' : 'outlined'}
-              color="info"
-              onClick={() => setType('transfer')}
-              sx={{ fontWeight: 600 }}
-              title="Pagamento de fatura, aplicação, Pix entre contas próprias: não conta como gasto nem receita"
-            >
-              Transferência
-            </Button>
-          </ButtonGroup>
+        <DialogContent dividers sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2.25 }}>
+          <ToggleButtonGroup
+            exclusive
+            fullWidth
+            value={type}
+            onChange={(e, value) => value && setType(value)}
+            sx={{ '& .MuiToggleButton-root': { minHeight: 44, fontWeight: 600, textTransform: 'none' } }}
+          >
+            {TYPE_OPTIONS.map(o => (
+              <ToggleButton key={o.value} value={o.value} color={o.color}>{o.label}</ToggleButton>
+            ))}
+          </ToggleButtonGroup>
 
-          {/* Descrição e Valor */}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 8 }}>
-              <TextField
-                label={type === 'income' ? 'Descrição da Receita / Salário' : 'Descrição da Compra'}
-                fullWidth
-                size="small"
-                required
-                placeholder={type === 'income' ? 'Ex.: Salário Final do Mês, Bônus, Freelance' : 'Ex.: Discos, Supermercado, Farm'}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                label={type === 'income' ? 'Valor Previsto (R$)' : 'Valor (R$)'}
-                fullWidth
-                size="small"
-                required
-                type="number"
-                inputProps={{ step: '0.01', min: '0.01' }}
-                placeholder="0,00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">R$</InputAdornment>
-                }}
-              />
-            </Grid>
-          </Grid>
+          <TextField
+            label="Valor"
+            fullWidth
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0,00"
+            autoFocus={!editTransaction}
+            inputProps={{ inputMode: 'decimal', style: { fontSize: 22, fontWeight: 700 } }}
+            InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+            error={Boolean(errors.amount)}
+            helperText={errors.amount}
+          />
 
-          {/* Conta/Cartão e Categoria (Categoria apenas se for despesa) */}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>{type === 'income' ? 'Receber Em (Conta / Banco)' : 'Conta / Cartão'}</InputLabel>
-                <Select
-                  value={accountId}
-                  label={type === 'income' ? 'Receber Em (Conta / Banco)' : 'Conta / Cartão'}
-                  onChange={(e) => setAccountId(e.target.value)}
-                >
-                  {accounts.map(acc => (
-                    <MenuItem key={acc.id} value={acc.id}>
-                      {acc.name}
-                    </MenuItem>
+          <TextField
+            label="Descrição"
+            fullWidth
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={type === 'income' ? 'Ex.: Salário, Freelance' : 'Ex.: Supermercado, Farmácia'}
+            inputProps={{ autoCapitalize: 'sentences' }}
+            error={Boolean(errors.description)}
+            helperText={errors.description}
+          />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.25 }}>
+            <FormControl fullWidth error={Boolean(errors.accountId)}>
+              <InputLabel>{type === 'income' ? 'Recebido em' : 'Conta ou cartão'}</InputLabel>
+              <Select value={accountId} label={type === 'income' ? 'Recebido em' : 'Conta ou cartão'} onChange={(e) => setAccountId(e.target.value)}>
+                {accounts.map(acc => <MenuItem key={acc.id} value={acc.id}>{acc.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+
+            {type === 'expense' && (
+              <FormControl fullWidth>
+                <InputLabel>Categoria</InputLabel>
+                <Select value={category} label="Categoria" onChange={(e) => setCategory(e.target.value)}>
+                  {categories.filter(c => c.name !== 'Salário & Entradas').map(c => (
+                    <MenuItem key={c.id} value={c.name}>{c.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
+            )}
 
-            {type === 'expense' ? (
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Categoria</InputLabel>
-                  <Select
-                    value={category}
-                    label="Categoria"
-                    onChange={(e) => setCategory(e.target.value)}
-                  >
-                    {categories.map(cat => (
-                      <MenuItem key={cat.id} value={cat.name}>
-                        {cat.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            ) : null}
-          </Grid>
+            <TextField
+              label={type === 'income' ? 'Data do recebimento' : 'Data'}
+              type="date"
+              fullWidth
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
 
-          {/* Data e Mês da Fatura / Competência */}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label={type === 'income' ? 'Data de Recebimento' : 'Data da Compra'}
-                type="date"
-                fullWidth
-                size="small"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                label="Mês da Fatura / Competência"
-                fullWidth
-                size="small"
-                placeholder="Automático"
+            <FormControl fullWidth>
+              <InputLabel shrink>Mês da fatura</InputLabel>
+              <Select
                 value={month}
+                label="Mês da fatura"
+                displayEmpty
+                notched
                 onChange={(e) => setMonth(e.target.value)}
-                helperText="Em branco: calculado pela data e pelo fechamento do cartão. Ou fixe um mês (AAAA-MM)."
-              />
-            </Grid>
-          </Grid>
+                renderValue={(v) => (v ? formatMonthTitle(v) : 'Automático')}
+              >
+                <MenuItem value="">Automático (pela data e fechamento)</MenuItem>
+                {monthOptions.map(m => <MenuItem key={m} value={m}>{formatMonthTitle(m)}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </Box>
 
-          {/* Parcelamento */}
           {type === 'expense' && (
-            <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(255, 255, 255, 0.02)', border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.02)', border: '1px solid', borderColor: 'divider' }}>
               <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={isInstallment}
-                    onChange={(e) => setIsInstallment(e.target.checked)}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Typography variant="body2" fontWeight={600}>
-                    Compra Parcelada (ex.: 1/6)
-                  </Typography>
-                }
+                control={<Switch checked={isInstallment} onChange={(e) => setIsInstallment(e.target.checked)} />}
+                label="Compra parcelada"
+                sx={{ m: 0, width: '100%', justifyContent: 'space-between', flexDirection: 'row-reverse', minHeight: 44 }}
               />
-
               {isInstallment && (
                 <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  <Grid container spacing={2}>
-                    <Grid size={6}>
-                      <TextField
-                        label="Parcela Atual"
-                        type="number"
-                        size="small"
-                        fullWidth
-                        inputProps={{ min: 1, max: totalInstallments }}
-                        value={currentInstallment}
-                        onChange={(e) => setCurrentInstallment(e.target.value)}
-                      />
-                    </Grid>
-                    <Grid size={6}>
-                      <TextField
-                        label="Total de Parcelas"
-                        type="number"
-                        size="small"
-                        fullWidth
-                        inputProps={{ min: 2, max: 48 }}
-                        value={totalInstallments}
-                        onChange={(e) => setTotalInstallments(e.target.value)}
-                      />
-                    </Grid>
-                  </Grid>
-
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                    <TextField label="Parcela atual" value={currentInstallment} onChange={(e) => setCurrentInstallment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+                    <TextField label="Total de parcelas" value={totalInstallments} onChange={(e) => setTotalInstallments(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+                  </Box>
                   {!editTransaction && (
                     <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={generateFutureMonths}
-                          onChange={(e) => setGenerateFutureMonths(e.target.checked)}
-                          size="small"
-                        />
-                      }
-                      label={
-                        <Typography variant="caption" color="text.secondary">
-                          Gerar automaticamente as parcelas nos meses subsequentes
-                        </Typography>
-                      }
+                      control={<Switch size="small" checked={generateFutureMonths} onChange={(e) => setGenerateFutureMonths(e.target.checked)} />}
+                      label={<Typography variant="body2" color="text.secondary">Criar as próximas parcelas nos meses seguintes</Typography>}
+                      sx={{ m: 0, width: '100%', justifyContent: 'space-between', flexDirection: 'row-reverse', minHeight: 44 }}
                     />
                   )}
                 </Box>
@@ -326,33 +239,33 @@ export function TransactionModal({
             </Box>
           )}
 
-          {/* Status Já Pago? */}
           <FormControlLabel
-            control={
-              <Checkbox
-                checked={paid}
-                onChange={(e) => setPaid(e.target.checked)}
-                color="secondary"
-              />
-            }
-            label={
-              <Typography variant="body2" fontWeight={600}>
-                Já está pago / liquidado?
-              </Typography>
-            }
+            control={<Switch checked={paid} onChange={(e) => setPaid(e.target.checked)} color="secondary" />}
+            label="Já está pago"
+            sx={{ m: 0, px: 1.5, justifyContent: 'space-between', flexDirection: 'row-reverse', minHeight: 44 }}
           />
         </DialogContent>
 
-        <DialogActions sx={{ px: 2.5, py: 2 }}>
-          <Button onClick={onClose} color="inherit">
-            Cancelar
-          </Button>
-          <Button type="submit" variant="contained" color={type === 'income' ? 'secondary' : 'primary'}>
-            {editTransaction 
-              ? 'Salvar Alterações' 
-              : type === 'income' 
-                ? 'Registrar Salário / Receita' 
-                : 'Registrar Compra'}
+        <DialogActions sx={{ px: 2.5, py: 1.5, gap: 1 }}>
+          {editTransaction && onDelete && (
+            <Button
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => onDelete(editTransaction)}
+              sx={{ minHeight: 48, mr: 'auto' }}
+            >
+              Excluir
+            </Button>
+          )}
+          {!fullScreen && <Button onClick={onClose} color="inherit" sx={{ minHeight: 48 }}>Cancelar</Button>}
+          <Button
+            type="submit"
+            variant="contained"
+            color={accent}
+            disabled={saving}
+            sx={{ minHeight: 48, flex: { xs: editTransaction ? '0 0 50%' : 1, sm: '0 0 auto' }, px: 3 }}
+          >
+            {editTransaction ? 'Salvar' : 'Adicionar'}
           </Button>
         </DialogActions>
       </form>
