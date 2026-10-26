@@ -1,7 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ThemeProvider,
-  CssBaseline,
   Box,
   Container,
   AppBar,
@@ -13,15 +11,19 @@ import {
   Tab,
   Select,
   MenuItem,
-  FormControl,
+  Menu,
+  ListItemIcon,
+  ListItemText,
+  Divider,
   Snackbar,
   Alert,
   BottomNavigation,
   BottomNavigationAction,
   Paper,
   Fab,
-  Chip,
-  CircularProgress
+  Badge,
+  CircularProgress,
+  Tooltip
 } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -31,20 +33,25 @@ import SyncIcon from '@mui/icons-material/Sync';
 import RestoreIcon from '@mui/icons-material/Restore';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import LayersIcon from '@mui/icons-material/Layers';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 
-import { theme } from './theme';
 import { SummaryCards } from './components/SummaryCards';
 import { TransactionList } from './components/TransactionList';
 import { TransactionModal } from './components/TransactionModal';
 import { InstallmentsTracker } from './components/InstallmentsTracker';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
+import { CategoryPicker } from './components/CategoryPicker';
 import { PluggySyncModal } from './components/PluggySyncModal';
 import { AccountManagementModal } from './components/AccountManagementModal';
 import { PinLockScreen } from './components/PinLockScreen';
+import { useConfirm } from './components/ConfirmDialog';
 import { api, clearToken, setUnauthorizedHandler } from './api';
 import { addMonths, currentMonth as getCurrentMonth, formatMonthTitle } from './months';
+import { formatBRL } from './format';
 import {
   useAccounts,
   useCategories,
@@ -60,7 +67,8 @@ import {
   useTogglePaid
 } from './queries';
 
-const fmtBRL = (value) => Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const UNDO_DELAY_MS = 5000;
+const SAFE_BOTTOM = 'env(safe-area-inset-bottom)';
 
 // Estado da autenticação: 'checking' | 'locked' | 'open' | 'offline'
 function useAuthGate() {
@@ -86,25 +94,69 @@ function useAuthGate() {
   return { state, pinRequired, check, unlock: () => setState('open'), lock: () => setState('locked') };
 }
 
+// Exclusão com "Desfazer": o lançamento some da tela na hora e só é apagado no servidor
+// depois de alguns segundos (ou antes, se o app for para segundo plano).
+function useDeferredDelete(deleteNow, onCommitted) {
+  const [pendingIds, setPendingIds] = useState(() => new Set());
+  const timers = useRef(new Map());
+
+  const forget = (id) => setPendingIds(prev => {
+    const next = new Set(prev);
+    next.delete(id);
+    return next;
+  });
+
+  const commit = (id) => {
+    clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
+    onCommitted(id);
+    deleteNow(id, () => forget(id));
+  };
+
+  const schedule = (id) => {
+    setPendingIds(prev => new Set(prev).add(id));
+    timers.current.set(id, setTimeout(() => commit(id), UNDO_DELAY_MS));
+  };
+
+  const undo = (id) => {
+    clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
+    forget(id);
+  };
+
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === 'hidden') [...timers.current.keys()].forEach(commit);
+    };
+    document.addEventListener('visibilitychange', flush);
+    return () => document.removeEventListener('visibilitychange', flush);
+  });
+
+  return { pendingIds, schedule, undo };
+}
+
 export default function App() {
   const auth = useAuthGate();
+  const confirm = useConfirm();
   const enabled = auth.state === 'open';
-  const isPinRequired = auth.pinRequired;
 
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth);
-  const [activeTab, setActiveTab] = useState(0); // 0: visão do mês, 1: parcelamentos
-  const [selectedAccountFilter, setSelectedAccountFilter] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [menuAnchor, setMenuAnchor] = useState(null);
 
   // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPluggyModalOpen, setIsPluggyModalOpen] = useState(false);
   const [isAccountsModalOpen, setIsAccountsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [pickingCategoryFor, setPickingCategoryFor] = useState(null);
 
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const showToast = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
+  const [toast, setToast] = useState(null); // { message, severity, action }
+  const showToast = (message, severity = 'success', action = null) =>
+    setToast({ message, severity, action, undoId: action?.undoId, key: Date.now() });
   const showError = (err) => showToast(err?.message || 'Algo deu errado.', 'error');
-  const handleCloseSnackbar = () => setSnackbar(prev => ({ ...prev, open: false }));
 
   // Dados: o servidor é a fonte única de verdade.
   const monthsQuery = useMonths(enabled);
@@ -121,58 +173,100 @@ export default function App() {
   const deleteAccount = useDeleteAccount();
   const resetData = useResetData();
 
+  const deferredDelete = useDeferredDelete(
+    (id, done) => deleteTransaction.mutate(id, { onSettled: done, onError: showError }),
+    // Depois de apagado no servidor não há mais o que desfazer: fecha o aviso.
+    (id) => setToast(t => (t?.undoId === id ? null : t))
+  );
+
   const installments = installmentsQuery.data || [];
-  const data = {
-    transactions: monthQuery.data?.transactions || [],
-    summary: monthQuery.data?.summary,
-    accounts: accountsQuery.data || [],
-    categories: categoriesQuery.data || []
-  };
+  const accounts = accountsQuery.data || [];
+  const categories = categoriesQuery.data || [];
+  const summary = monthQuery.data?.summary;
+  const transactions = (monthQuery.data?.transactions || []).filter(t => !deferredDelete.pendingIds.has(t.id));
   const availableMonths = Array.from(new Set([...(monthsQuery.data || []), currentMonth])).sort();
   const loadError = monthQuery.error || accountsQuery.error;
+
+  const goToTab = (tab) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
+  };
+
+  const openNewTransaction = () => {
+    setEditingTransaction(null);
+    setIsModalOpen(true);
+  };
+
+  const closeTransactionModal = () => {
+    setIsModalOpen(false);
+    setEditingTransaction(null);
+  };
 
   const handleLockApp = () => {
     clearToken();
     auth.lock();
-    showToast('Aplicativo bloqueado com segurança.', 'info');
   };
 
-  const changeMonth = (direction) => setCurrentMonth(m => addMonths(m, direction));
-  const handleSelectMonth = (month) => setCurrentMonth(month);
+  const recategorizedMessage = (result, category) => {
+    const n = result?.recategorized;
+    if (!n) return null;
+    return n === 1
+      ? `${category}: salvo, e mais 1 lançamento da mesma loja foi atualizado.`
+      : `${category}: salvo, e mais ${n} lançamentos da mesma loja foram atualizados.`;
+  };
 
   const handleSaveTransaction = (formData) => {
     const id = editingTransaction?.id;
+    const categoryChanged = id && formData.category !== editingTransaction.category;
     saveTransaction.mutate({ id, data: formData }, {
-      onSuccess: () => {
-        showToast(id ? 'Lançamento atualizado!' : 'Lançamento registrado!');
-        setIsModalOpen(false);
-        setEditingTransaction(null);
+      onSuccess: (result) => {
+        showToast((categoryChanged && recategorizedMessage(result, formData.category)) || (id ? 'Lançamento atualizado.' : 'Lançamento adicionado.'));
+        closeTransactionModal();
       },
+      onError: showError
+    });
+  };
+
+  const handlePickCategory = (tx, category) => {
+    setPickingCategoryFor(null);
+    if (category === tx.category) return;
+    saveTransaction.mutate({ id: tx.id, data: { category } }, {
+      onSuccess: (result) => showToast(recategorizedMessage(result, category) || `Categoria alterada para ${category}.`),
       onError: showError
     });
   };
 
   const handleTogglePaid = (id) => togglePaid.mutate(id, { onError: showError });
 
-  const handleDeleteTransaction = (id) => {
-    if (!window.confirm('Tem certeza que deseja remover este lançamento?')) return;
-    deleteTransaction.mutate(id, { onSuccess: () => showToast('Lançamento removido.'), onError: showError });
+  const handleDeleteTransaction = (tx) => {
+    closeTransactionModal();
+    deferredDelete.schedule(tx.id);
+    showToast('Lançamento excluído.', 'info', { label: 'Desfazer', onClick: () => deferredDelete.undo(tx.id), undoId: tx.id });
   };
 
-  const handleClearAllTransactions = () => {
-    if (!window.confirm('Apagar TODOS os lançamentos e cartões/contas? Categorias e metas são preservadas. Não dá para desfazer.')) return;
-    resetData.mutate('clear', {
-      onSuccess: () => showToast('Lançamentos e cartões/contas apagados.'),
-      onError: showError
-    });
+  const handleClearAllTransactions = async () => {
+    setMenuAnchor(null);
+    if (!(await confirm({
+      title: 'Apagar todos os dados?',
+      message: 'Todos os lançamentos e cartões/contas serão apagados. Categorias e metas ficam. Não dá para desfazer.',
+      confirmLabel: 'Apagar tudo',
+      danger: true
+    }))) return;
+    resetData.mutate('clear', { onSuccess: () => showToast('Lançamentos e cartões/contas apagados.'), onError: showError });
   };
 
-  const handleResetSeed = () => {
-    if (!window.confirm('Substituir TODOS os dados atuais pelos dados de exemplo da planilha de Outubro/2026?')) return;
+  const handleResetSeed = async () => {
+    setMenuAnchor(null);
+    if (!(await confirm({
+      title: 'Carregar dados de exemplo?',
+      message: 'Todos os dados atuais serão substituídos pelos dados de exemplo de outubro de 2026.',
+      confirmLabel: 'Substituir',
+      danger: true
+    }))) return;
     resetData.mutate('seed', {
       onSuccess: () => {
         setCurrentMonth('2026-10');
-        showToast('Dados de exemplo restaurados.');
+        showToast('Dados de exemplo carregados.');
       },
       onError: showError
     });
@@ -180,27 +274,32 @@ export default function App() {
 
   const handleUpdateCustomSurplus = (target) => {
     setSurplus.mutate(target, {
-      onSuccess: () => showToast(target === null ? 'Sobra prevista voltou ao cálculo padrão.' : `Meta de sobra ajustada para ${fmtBRL(target)}`),
+      onSuccess: () => showToast(target === null ? 'Meta de sobra voltou ao valor calculado.' : `Meta de sobra: ${formatBRL(target)}`),
       onError: showError
     });
   };
 
   const handleSaveAccount = ({ id, ...accData }) => {
     saveAccount.mutate({ id, data: accData }, {
-      onSuccess: () => showToast(`Cartão/Conta "${accData.name}" ${id ? 'atualizado' : 'adicionado'}!`),
+      onSuccess: () => showToast(`"${accData.name}" ${id ? 'atualizado' : 'adicionado'}.`),
       onError: showError
     });
   };
 
-  const handleDeleteAccount = (id, name) => {
-    if (!window.confirm(`Remover o cartão/conta "${name}"?`)) return;
-    const onSuccess = () => showToast(`Conta/Cartão "${name}" removido.`);
+  const handleDeleteAccount = async (id, name) => {
+    if (!(await confirm({ title: `Remover "${name}"?`, confirmLabel: 'Remover', danger: true }))) return;
+    const onSuccess = () => showToast(`"${name}" removido.`);
     deleteAccount.mutate({ id }, {
       onSuccess,
-      onError: (err) => {
+      onError: async (err) => {
         // Conta com lançamentos: o servidor exige confirmação explícita para apagá-los junto.
         if (err.status !== 409) return showError(err);
-        if (window.confirm(`${err.message}\n\nExcluir a conta E os ${err.body.transactionCount} lançamento(s)?`)) {
+        if (await confirm({
+          title: 'A conta tem lançamentos',
+          message: `Excluir "${name}" e os ${err.body.transactionCount} lançamento(s) dela? Não dá para desfazer.`,
+          confirmLabel: 'Excluir tudo',
+          danger: true
+        })) {
           deleteAccount.mutate({ id, withTransactions: true }, { onSuccess, onError: showError });
         }
       }
@@ -209,45 +308,57 @@ export default function App() {
 
   if (auth.state === 'checking' || auth.state === 'offline') {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 3, textAlign: 'center' }}>
-          {auth.state === 'checking' ? (
-            <CircularProgress />
-          ) : (
-            <>
-              <Typography variant="h6">Sem conexão com o servidor</Typography>
-              <Typography variant="body2" color="text.secondary">Verifique se o servidor está rodando e tente novamente.</Typography>
-              <Button variant="contained" onClick={auth.check}>Tentar novamente</Button>
-            </>
-          )}
-        </Box>
-      </ThemeProvider>
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 3, textAlign: 'center' }}>
+        {auth.state === 'checking' ? (
+          <CircularProgress />
+        ) : (
+          <>
+            <Typography variant="h6">Sem conexão com o servidor</Typography>
+            <Typography variant="body2" color="text.secondary">Verifique sua internet e tente novamente.</Typography>
+            <Button variant="contained" onClick={auth.check} sx={{ minHeight: 48 }}>Tentar novamente</Button>
+          </>
+        )}
+      </Box>
     );
   }
 
   if (auth.state === 'locked') {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <PinLockScreen onUnlock={() => { auth.unlock(); showToast('PIN autenticado com sucesso!'); }} />
-      </ThemeProvider>
-    );
+    return <PinLockScreen onUnlock={auth.unlock} />;
   }
 
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+  const menuItem = (icon, label, onClick, color) => (
+    <MenuItem onClick={() => { setMenuAnchor(null); onClick(); }} sx={{ minHeight: 48, color }}>
+      <ListItemIcon sx={{ color: color || 'inherit' }}>{icon}</ListItemIcon>
+      <ListItemText>{label}</ListItemText>
+    </MenuItem>
+  );
 
+  return (
+    <>
       <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3500}
-        onClose={handleCloseSnackbar}
+        key={toast?.key}
+        open={Boolean(toast)}
+        autoHideDuration={toast?.action ? UNDO_DELAY_MS : 3500}
+        onClose={(e, reason) => reason !== 'clickaway' && setToast(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        // No celular fica acima da barra inferior e à esquerda do botão +.
+        sx={{ bottom: { xs: `calc(80px + ${SAFE_BOTTOM}) !important`, sm: '24px !important' }, right: { xs: '84px !important', sm: 'auto' } }}
       >
-        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 3 }}>
-          {snackbar.message}
-        </Alert>
+        {toast ? (
+          <Alert
+            severity={toast.severity}
+            variant="filled"
+            onClose={toast.action ? undefined : () => setToast(null)}
+            action={toast.action && (
+              <Button color="inherit" size="small" sx={{ fontWeight: 700 }} onClick={() => { toast.action.onClick(); setToast(null); }}>
+                {toast.action.label}
+              </Button>
+            )}
+            sx={{ width: '100%', borderRadius: '12px', alignItems: 'center' }}
+          >
+            {toast.message}
+          </Alert>
+        ) : <span />}
       </Snackbar>
 
       {loadError && (
@@ -256,245 +367,151 @@ export default function App() {
         </Alert>
       )}
 
-      {/* Barra de Navegação Superior (AppBar) */}
-      <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-        <Toolbar sx={{ justifyContent: 'space-between', gap: 1, px: { xs: 1.5, sm: 3 } }}>
-          {/* Logo e Título */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 1, borderRadius: 2.5, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex' }}>
+      {/* Cabeçalho */}
+      <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', pt: 'env(safe-area-inset-top)' }}>
+        <Toolbar sx={{ gap: 1, px: { xs: 1, sm: 3 }, minHeight: { xs: 60 } }}>
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1.5, mr: 1 }}>
+            <Box sx={{ p: 1, borderRadius: '10px', bgcolor: 'primary.main', display: 'flex' }}>
               <AccountBalanceWalletIcon fontSize="small" />
             </Box>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }} noWrap>
-                Controle de Gastos
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                Finanças Mensais
-              </Typography>
-            </Box>
+            <Typography variant="subtitle1" fontWeight={700} noWrap sx={{ display: { sm: 'none', md: 'block' } }}>
+              Controle de Gastos
+            </Typography>
           </Box>
 
-          {/* Seletor de Mês */}
-          <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'rgba(255, 255, 255, 0.03)', borderRadius: 2.5, p: 0.5, border: '1px solid', borderColor: 'divider' }}>
-            <IconButton size="small" onClick={() => changeMonth(-1)}>
-              <ChevronLeftIcon fontSize="small" />
-            </IconButton>
-
-            <FormControl size="small" variant="standard" sx={{ minWidth: { xs: 120, sm: 160 } }}>
+          {/* Seletor de mês: ocupa o espaço que sobrar, nunca alarga a tela */}
+          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: { xs: 'flex-start', md: 'center' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: 340, width: '100%', borderRadius: '12px', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(255, 255, 255, 0.03)' }}>
+              <IconButton onClick={() => setCurrentMonth(m => addMonths(m, -1))} aria-label="Mês anterior" sx={{ width: 44, height: 44 }}>
+                <ChevronLeftIcon />
+              </IconButton>
               <Select
                 value={currentMonth}
-                onChange={(e) => handleSelectMonth(e.target.value)}
+                onChange={(e) => setCurrentMonth(e.target.value)}
+                variant="standard"
                 disableUnderline
-                sx={{
-                  fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                  fontWeight: 600,
-                  textAlign: 'center',
-                  '& .MuiSelect-select': { py: 0.5, px: 1 }
-                }}
+                IconComponent={() => null}
+                sx={{ flex: 1, minWidth: 0, fontWeight: 700, '& .MuiSelect-select': { textAlign: 'center', p: '0 !important' } }}
+                renderValue={(m) => <Box component="span" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatMonthTitle(m)}</Box>}
+                MenuProps={{ PaperProps: { sx: { maxHeight: 360 } } }}
               >
-                {availableMonths.map(m => (
-                  <MenuItem key={m} value={m}>
-                    {formatMonthTitle(m)}
-                  </MenuItem>
-                ))}
+                {availableMonths.map(m => <MenuItem key={m} value={m} sx={{ minHeight: 44 }}>{formatMonthTitle(m)}</MenuItem>)}
               </Select>
-            </FormControl>
-
-            <IconButton size="small" onClick={() => changeMonth(1)}>
-              <ChevronRightIcon fontSize="small" />
-            </IconButton>
-          </Box>
-
-          {/* Ações no Desktop */}
-          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
-            <Button
-              size="small"
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteSweepIcon />}
-              onClick={handleClearAllTransactions}
-              sx={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}
-            >
-              Limpar
-            </Button>
-
-            <Button
-              size="small"
-              variant="outlined"
-              color="inherit"
-              startIcon={<RestoreIcon />}
-              onClick={handleResetSeed}
-              sx={{ borderColor: 'divider' }}
-            >
-              Restaurar
-            </Button>
-
-            <Button
-              size="small"
-              variant="outlined"
-              color="secondary"
-              startIcon={<SyncIcon />}
-              onClick={() => setIsPluggyModalOpen(true)}
-            >
-              Sincronizar Bancos
-            </Button>
-
-            <Button
-              size="small"
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() => {
-                setEditingTransaction(null);
-                setIsModalOpen(true);
-              }}
-            >
-              Nova Compra
-            </Button>
-
-            {/* Botão de Bloqueio (se PIN configurado) */}
-            {isPinRequired && (
-              <IconButton
-                size="small"
-                onClick={handleLockApp}
-                title="Bloquear aplicativo"
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: 'rgba(255, 255, 255, 0.02)',
-                  '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)', color: 'error.main' }
-                }}
-              >
-                <LockOutlinedIcon fontSize="small" />
-              </IconButton>
-            )}
-          </Box>
-
-          {/* Botão de Bloqueio no Mobile */}
-          {isPinRequired && (
-            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center' }}>
-              <IconButton
-                size="small"
-                onClick={handleLockApp}
-                title="Bloquear aplicativo"
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: 'rgba(255, 255, 255, 0.02)'
-                }}
-              >
-                <LockOutlinedIcon fontSize="small" />
+              <IconButton onClick={() => setCurrentMonth(m => addMonths(m, 1))} aria-label="Próximo mês" sx={{ width: 44, height: 44 }}>
+                <ChevronRightIcon />
               </IconButton>
             </Box>
-          )}
+          </Box>
+
+          <Tooltip title="Sincronizar bancos">
+            <IconButton onClick={() => setIsPluggyModalOpen(true)} aria-label="Sincronizar bancos" sx={{ width: 44, height: 44, display: { md: 'none' } }}>
+              <SyncIcon />
+            </IconButton>
+          </Tooltip>
+          <Button variant="outlined" color="secondary" startIcon={<SyncIcon />} onClick={() => setIsPluggyModalOpen(true)} sx={{ display: { xs: 'none', md: 'flex' } }}>
+            Sincronizar
+          </Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openNewTransaction} sx={{ display: { xs: 'none', md: 'flex' } }}>
+            Novo lançamento
+          </Button>
+          <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} aria-label="Mais opções" sx={{ width: 44, height: 44 }}>
+            <MoreVertIcon />
+          </IconButton>
+          <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+            {menuItem(<CreditCardIcon fontSize="small" />, 'Cartões e contas', () => setIsAccountsModalOpen(true))}
+            {menuItem(<SyncIcon fontSize="small" />, 'Sincronizar bancos', () => setIsPluggyModalOpen(true))}
+            {auth.pinRequired && menuItem(<LockOutlinedIcon fontSize="small" />, 'Bloquear app', handleLockApp)}
+            <Divider />
+            {menuItem(<RestoreIcon fontSize="small" />, 'Carregar dados de exemplo', handleResetSeed)}
+            {menuItem(<DeleteSweepIcon fontSize="small" />, 'Apagar todos os dados', handleClearAllTransactions, 'error.main')}
+          </Menu>
         </Toolbar>
       </AppBar>
 
-      {/* Conteúdo Central */}
-      <Container maxWidth="xl" sx={{ py: { xs: 1.5, sm: 3 }, pb: { xs: 11, md: 4 }, px: { xs: 1.5, sm: 3, md: 4 }, width: '100%' }}>
-        {/* Abas Superiores no Desktop */}
-        <Box sx={{ display: { xs: 'none', sm: 'flex' }, justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Tabs
-            value={activeTab}
-            onChange={(e, val) => setActiveTab(val)}
-            textColor="primary"
-            indicatorColor="primary"
-          >
-            <Tab
-              icon={<DashboardIcon fontSize="small" />}
-              iconPosition="start"
-              label={`Visão do Mês (${formatMonthTitle(currentMonth)})`}
-              sx={{ minHeight: 48, fontWeight: 600 }}
-            />
-            <Tab
-              icon={<LayersIcon fontSize="small" />}
-              iconPosition="start"
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <span>Parcelamentos Ativos</span>
-                  <Chip label={installments.length} size="small" color="info" sx={{ height: 20, fontWeight: 700 }} />
-                </Box>
-              }
-              sx={{ minHeight: 48, fontWeight: 600 }}
-            />
-          </Tabs>
+      <Container
+        maxWidth="lg"
+        sx={{
+          py: { xs: 1.5, sm: 3 },
+          px: { xs: 1.5, sm: 3 },
+          pb: { xs: `calc(160px + ${SAFE_BOTTOM})`, sm: 4 }
+        }}
+      >
+        {/* Abas no computador/tablet */}
+        <Tabs value={activeTab} onChange={(e, tab) => goToTab(tab)} sx={{ display: { xs: 'none', sm: 'flex' }, mb: 3 }}>
+          <Tab value="overview" icon={<DashboardIcon fontSize="small" />} iconPosition="start" label="Visão geral" sx={{ minHeight: 48 }} />
+          <Tab value="transactions" icon={<ReceiptLongIcon fontSize="small" />} iconPosition="start" label={`Lançamentos (${transactions.length})`} sx={{ minHeight: 48 }} />
+          <Tab value="installments" icon={<LayersIcon fontSize="small" />} iconPosition="start" label={`Parcelas (${installments.length})`} sx={{ minHeight: 48 }} />
+        </Tabs>
 
-          <Typography variant="caption" color="text.secondary">
-            {data.transactions?.length || 0} lançamentos
-          </Typography>
-        </Box>
-
-        {/* Exibição da Aba Atual */}
-        {activeTab === 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, sm: 3 }, width: '100%' }}>
-            {/* Cards de Resumo */}
+        {activeTab === 'overview' && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <SummaryCards
-              summary={data.summary}
-              accounts={data.accounts}
-              selectedAccountFilter={selectedAccountFilter}
-              onSelectAccountFilter={setSelectedAccountFilter}
+              summary={summary}
+              accounts={accounts}
+              onSelectAccount={(name) => {
+                setAccountFilter(name);
+                setCategoryFilter('');
+                goToTab('transactions');
+              }}
               onUpdateCustomSurplus={handleUpdateCustomSurplus}
               onOpenManageAccounts={() => setIsAccountsModalOpen(true)}
             />
-
-            {/* Listagem de Transações e Barra Lateral (CSS Grid sem offsets ou margens à esquerda) */}
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', md: '1fr 340px', lg: '1fr 380px' },
-                gap: { xs: 2, md: 3 },
-                width: '100%',
-                alignItems: 'start'
+            <CategoryBreakdown
+              expensesByCategory={summary?.expensesByCategory || {}}
+              categories={categories}
+              totalExpense={summary?.totalExpense || 0}
+              onSelectCategory={(name) => {
+                setCategoryFilter(name);
+                setAccountFilter('');
+                goToTab('transactions');
               }}
-            >
-              <Box sx={{ width: '100%', minWidth: 0 }}>
-                <TransactionList
-                  transactions={data.transactions || []}
-                  accounts={data.accounts || []}
-                  categories={data.categories || []}
-                  selectedAccountFilter={selectedAccountFilter}
-                  onSelectAccountFilter={setSelectedAccountFilter}
-                  onTogglePaid={handleTogglePaid}
-                  onEdit={(tx) => {
-                    setEditingTransaction(tx);
-                    setIsModalOpen(true);
-                  }}
-                  onDelete={handleDeleteTransaction}
-                />
-              </Box>
-
-              {/* Barra Lateral */}
-              <Box sx={{ width: '100%', minWidth: 0 }}>
-                <CategoryBreakdown
-                  expensesByCategory={data.summary?.expensesByCategory || {}}
-                  categories={data.categories || []}
-                  totalExpense={data.summary?.totalExpense || 0}
-                />
-              </Box>
-            </Box>
+            />
           </Box>
-        ) : (
-          <InstallmentsTracker installments={installments} currentMonth={currentMonth} accounts={data.accounts} />
+        )}
+
+        {activeTab === 'transactions' && (
+          <TransactionList
+            transactions={transactions}
+            categories={categories}
+            accountFilter={accountFilter}
+            onAccountFilterChange={setAccountFilter}
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={setCategoryFilter}
+            onTogglePaid={handleTogglePaid}
+            onEdit={(tx) => {
+              setEditingTransaction(tx);
+              setIsModalOpen(true);
+            }}
+            onDelete={handleDeleteTransaction}
+            onPickCategory={setPickingCategoryFor}
+          />
+        )}
+
+        {activeTab === 'installments' && (
+          <InstallmentsTracker installments={installments} currentMonth={currentMonth} accounts={accounts} />
         )}
       </Container>
 
-      {/* Botão Flutuante (FAB) para Mobile */}
-      <Box sx={{ display: { xs: 'block', md: 'none' }, position: 'fixed', bottom: 72, right: 16, zIndex: 30 }}>
-        <Fab
-          color="primary"
-          aria-label="adicionar"
-          onClick={() => {
-            setEditingTransaction(null);
-            setIsModalOpen(true);
-          }}
-          sx={{ boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)' }}
-        >
-          <AddIcon />
-        </Fab>
-      </Box>
+      {/* Botão de novo lançamento no celular */}
+      <Fab
+        color="primary"
+        aria-label="Novo lançamento"
+        onClick={openNewTransaction}
+        sx={{
+          display: { md: 'none' },
+          position: 'fixed',
+          right: 16,
+          bottom: { xs: `calc(76px + ${SAFE_BOTTOM})`, sm: 24 },
+          zIndex: 30,
+          boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)'
+        }}
+      >
+        <AddIcon />
+      </Fab>
 
-      {/* Barra de Navegação Inferior (BottomNavigation) para Celular */}
+      {/* Navegação inferior no celular */}
       <Paper
+        elevation={6}
         sx={{
           display: { xs: 'block', sm: 'none' },
           position: 'fixed',
@@ -504,68 +521,38 @@ export default function App() {
           zIndex: 40,
           borderTop: '1px solid',
           borderColor: 'divider',
-          bgcolor: 'background.paper'
+          pb: SAFE_BOTTOM
         }}
-        elevation={6}
       >
-        <BottomNavigation
-          showLabels
-          value={activeTab}
-          onChange={(e, val) => {
-            if (val === 2) {
-              setIsPluggyModalOpen(true);
-            } else {
-              setActiveTab(val);
-            }
-          }}
-          sx={{ bgcolor: 'transparent', height: 60 }}
-        >
-          <BottomNavigationAction label="Visão Geral" icon={<DashboardIcon />} />
+        <BottomNavigation showLabels value={activeTab} onChange={(e, tab) => goToTab(tab)} sx={{ bgcolor: 'transparent', height: 64 }}>
+          <BottomNavigationAction value="overview" label="Visão geral" icon={<DashboardIcon />} />
+          <BottomNavigationAction value="transactions" label="Lançamentos" icon={<ReceiptLongIcon />} />
           <BottomNavigationAction
+            value="installments"
             label="Parcelas"
-            icon={
-              <Box sx={{ position: 'relative' }}>
-                <LayersIcon />
-                {installments.length > 0 && (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -8,
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      bgcolor: 'info.main',
-                      color: 'white',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {installments.length}
-                  </Box>
-                )}
-              </Box>
-            }
+            icon={<Badge badgeContent={installments.length} color="info" max={99}><LayersIcon /></Badge>}
           />
-          <BottomNavigationAction label="Bancos" icon={<SyncIcon />} />
         </BottomNavigation>
       </Paper>
 
       {/* Modais */}
       <TransactionModal
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingTransaction(null);
-        }}
+        onClose={closeTransactionModal}
         onSave={handleSaveTransaction}
-        categories={data.categories}
-        accounts={data.accounts}
+        onDelete={handleDeleteTransaction}
+        categories={categories}
+        accounts={accounts}
         currentMonth={currentMonth}
         editTransaction={editingTransaction}
+        saving={saveTransaction.isPending}
+      />
+
+      <CategoryPicker
+        transaction={pickingCategoryFor}
+        categories={categories}
+        onSelect={handlePickCategory}
+        onClose={() => setPickingCategoryFor(null)}
       />
 
       <PluggySyncModal
@@ -577,10 +564,10 @@ export default function App() {
       <AccountManagementModal
         isOpen={isAccountsModalOpen}
         onClose={() => setIsAccountsModalOpen(false)}
-        accounts={data.accounts}
+        accounts={accounts}
         onSaveAccount={handleSaveAccount}
         onDeleteAccount={handleDeleteAccount}
       />
-    </ThemeProvider>
+    </>
   );
 }

@@ -229,7 +229,7 @@ export function PinLockScreen({ onUnlock }) {
               sx={{
                 height: 56,
                 borderRadius: 3,
-                fontSize: '0.75rem',
+                fontSize: '0.8125rem',
                 fontWeight: 600,
                 color: 'text.secondary',
                 textTransform: 'uppercase'
@@ -293,7 +293,7 @@ export function PinLockScreen({ onUnlock }) {
             </Box>
           )}
 
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 3, fontSize: '0.7rem' }}>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 3, fontSize: '0.8125rem' }}>
             🔒 Sessão salva por 30 dias neste dispositivo
           </Typography>
         </CardContent>

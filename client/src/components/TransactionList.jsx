@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Card,
   Box,
@@ -7,177 +7,312 @@ import {
   InputAdornment,
   IconButton,
   Chip,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Checkbox,
-  Divider,
-  Stack,
   Button,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
   Collapse,
-  TableSortLabel,
-  useMediaQuery,
-  useTheme
+  ButtonBase,
+  Tooltip
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import TuneIcon from '@mui/icons-material/Tune';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
-import SwapVertIcon from '@mui/icons-material/SwapVert';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import { CategoryAvatar } from './CategoryAvatar';
+import { formatBRL, formatDayHeader, formatMonthShort, parseAmount } from '../format';
 
 // Transferências (pagamento de fatura, aplicação automática) não são gasto nem receita.
-const amountColor = (type) => type === 'income' ? 'secondary.main' : type === 'transfer' ? 'text.secondary' : 'error.main';
-const amountPrefix = (type) => type === 'income' ? '+ ' : type === 'transfer' ? '⇄ ' : '- ';
+const amountColor = (type) => (type === 'income' ? 'secondary.main' : type === 'transfer' ? 'text.secondary' : 'text.primary');
+const amountPrefix = (type) => (type === 'income' ? '+ ' : type === 'transfer' ? '⇄ ' : '− ');
+
+const TYPE_FILTERS = [
+  { value: 'all', label: 'Todos' },
+  { value: 'expense', label: 'Gastos' },
+  { value: 'income', label: 'Entradas' },
+  { value: 'transfer', label: 'Transferências' }
+];
+
+const SWIPE_THRESHOLD = 80;
+
+// A parcela já aparece no selo "2/12": tira o "02/12" do fim da descrição.
+const INSTALLMENT_SUFFIX = /\s*-?\s*(?:parcela\s*)?\d{1,2}\s*\/\s*\d{1,2}\s*$/i;
+const displayDescription = (tx) => (tx.installment ? tx.description.replace(INSTALLMENT_SUFFIX, '') || tx.description : tx.description);
+
+const secondaryLine = (tx) => {
+  if (tx.type === 'income') return tx.account;
+  if (tx.type === 'transfer') return `Transferência · ${tx.account}`;
+  return `${tx.category} · ${tx.account}`;
+};
+
+// Linha que pode ser arrastada no celular: para a direita marca como pago, para a esquerda exclui.
+function SwipeRow({ children, paid, onSwipeRight, onSwipeLeft }) {
+  const [dx, setDx] = useState(0);
+  const start = useRef(null);
+  const dragging = useRef(false);
+  const justSwiped = useRef(false);
+
+  const reset = () => {
+    start.current = null;
+    dragging.current = false;
+    setDx(0);
+  };
+
+  const handlers = {
+    onPointerDown: (e) => {
+      if (e.pointerType !== 'touch') return;
+      start.current = { x: e.clientX, y: e.clientY };
+      dragging.current = false;
+    },
+    onPointerMove: (e) => {
+      if (!start.current) return;
+      const deltaX = e.clientX - start.current.x;
+      const deltaY = e.clientY - start.current.y;
+      if (!dragging.current) {
+        if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+          dragging.current = true;
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+        } else if (Math.abs(deltaY) > 12) {
+          start.current = null;
+          return;
+        }
+      }
+      if (dragging.current) setDx(Math.max(-140, Math.min(140, deltaX)));
+    },
+    onPointerUp: () => {
+      if (dragging.current) {
+        justSwiped.current = true;
+        setTimeout(() => { justSwiped.current = false; }, 50);
+        if (dx > SWIPE_THRESHOLD) onSwipeRight();
+        else if (dx < -SWIPE_THRESHOLD) onSwipeLeft();
+      }
+      reset();
+    },
+    onPointerCancel: reset,
+    // Um arrasto não deve virar toque (abrir a edição).
+    onClickCapture: (e) => {
+      if (justSwiped.current) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }
+  };
+
+  const reveal = Math.min(1, Math.abs(dx) / SWIPE_THRESHOLD);
+  return (
+    <Box sx={{ position: 'relative', overflow: 'hidden', touchAction: 'pan-y' }} {...handlers}>
+      {dx !== 0 && (
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: dx > 0 ? 'flex-start' : 'flex-end',
+            px: 2.5,
+            bgcolor: dx > 0 ? 'secondary.dark' : 'error.dark',
+            opacity: 0.4 + reveal * 0.6,
+            color: '#fff',
+            fontWeight: 700
+          }}
+        >
+          {dx > 0 ? (paid ? 'Pendente' : 'Pago') : 'Excluir'}
+        </Box>
+      )}
+      <Box
+        sx={{
+          position: 'relative',
+          transform: `translateX(${dx}px)`,
+          transition: dx === 0 ? 'transform 0.2s ease' : 'none',
+          bgcolor: 'background.paper'
+        }}
+      >
+        {children}
+      </Box>
+    </Box>
+  );
+}
+
+function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, onDelete }) {
+  const billedInOtherMonth = tx.date && tx.date.slice(0, 7) !== tx.month;
+
+  return (
+    <SwipeRow paid={tx.paid} onSwipeRight={() => onTogglePaid(tx.id)} onSwipeLeft={() => onDelete(tx)}>
+      <Box
+        role="button"
+        tabIndex={0}
+        aria-label={`${tx.description}, ${amountPrefix(tx.type)}${formatBRL(tx.amount)}, ${tx.paid ? 'pago' : 'pendente'}. Toque para editar.`}
+        onClick={() => onEdit(tx)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onEdit(tx); }}
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          px: { xs: 1.5, sm: 2 },
+          py: 1.25,
+          minHeight: 68,
+          cursor: 'pointer',
+          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.03)' },
+          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 }
+        }}
+      >
+        <Tooltip title="Trocar categoria">
+          <ButtonBase
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tx.type === 'expense') onPickCategory(tx);
+            }}
+            aria-label={`Categoria: ${tx.category}`}
+            sx={{ borderRadius: '50%', p: 0.25 }}
+          >
+            <CategoryAvatar category={tx.category} categories={categories} type={tx.type} paid={tx.paid} size={40} />
+          </ButtonBase>
+        </Tooltip>
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            sx={{
+              fontWeight: 600,
+              fontSize: '0.95rem',
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordBreak: 'break-word'
+            }}
+          >
+            {displayDescription(tx)}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25, flexWrap: 'wrap' }}>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: '100%' }}>
+              {secondaryLine(tx)}
+            </Typography>
+            {tx.installment && (
+              <Chip label={`${tx.installment.current}/${tx.installment.total}`} size="small" color="info" sx={{ height: 20, fontSize: '0.75rem' }} />
+            )}
+            {billedInOtherMonth && (
+              <Tooltip title="Compra feita em outro mês, cobrada na fatura deste mês">
+                <Chip label={`fatura ${formatMonthShort(tx.month)}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
+
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: amountColor(tx.type), whiteSpace: 'nowrap' }}>
+          {amountPrefix(tx.type)}{formatBRL(tx.amount)}
+        </Typography>
+
+        {/* No computador não há arrasto: ações visíveis. */}
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 0.5 }}>
+          <Tooltip title={tx.paid ? 'Marcar como pendente' : 'Marcar como pago'}>
+            <IconButton onClick={(e) => { e.stopPropagation(); onTogglePaid(tx.id); }}>
+              {tx.paid ? <CheckCircleIcon color="secondary" /> : <RadioButtonUncheckedIcon />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Excluir">
+            <IconButton onClick={(e) => { e.stopPropagation(); onDelete(tx); }} sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}>
+              <DeleteOutlineIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+    </SwipeRow>
+  );
+}
 
 export function TransactionList({
   transactions = [],
-  accounts = [],
   categories = [],
-  selectedAccountFilter = '',
-  onSelectAccountFilter,
+  accountFilter = '',
+  onAccountFilterChange,
+  categoryFilter = '',
+  onCategoryFilterChange,
   onTogglePaid,
   onEdit,
-  onDelete
+  onDelete,
+  onPickCategory
 }) {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'expense' | 'income' | 'transfer'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'paid' | 'pending'
-  
-  // Filtros avançados
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  
-  // Ordenação
   const [sortBy, setSortBy] = useState('date'); // 'date' | 'amount' | 'description'
-  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+  const [sortOrder, setSortOrder] = useState('desc');
 
-  const handleSort = (property) => {
-    const isAsc = sortBy === property && sortOrder === 'asc';
-    setSortOrder(isAsc ? 'desc' : 'asc');
-    setSortBy(property);
-  };
+  const hasAdvanced = Boolean(startDate || endDate || minAmount || maxAmount || sortBy !== 'date' || sortOrder !== 'desc');
+  const hasAnyFilter = hasAdvanced || searchTerm || typeFilter !== 'all' || pendingOnly || accountFilter || categoryFilter;
 
-  const hasActiveAdvancedFilters = Boolean(
-    startDate || endDate || minAmount || maxAmount || categoryFilter
-  );
-
-  const clearAllFilters = () => {
+  const clearAll = () => {
     setSearchTerm('');
     setTypeFilter('all');
-    setStatusFilter('all');
+    setPendingOnly(false);
     setStartDate('');
     setEndDate('');
     setMinAmount('');
     setMaxAmount('');
-    setCategoryFilter('');
-    if (onSelectAccountFilter) onSelectAccountFilter('');
+    setSortBy('date');
+    setSortOrder('desc');
+    onAccountFilterChange?.('');
+    onCategoryFilterChange?.('');
   };
 
-  const formatBRL = (val) => {
-    return Number(val || 0).toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-  };
-
-  // Filtragem e Ordenação com useMemo
-  const filteredTransactions = useMemo(() => {
+  const filtered = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    const min = parseAmount(minAmount);
+    const max = parseAmount(maxAmount);
     return transactions
       .filter(t => {
-        if (searchTerm) {
-          const term = searchTerm.toLowerCase();
-          const descMatch = t.description?.toLowerCase().includes(term);
-          const catMatch = t.category?.toLowerCase().includes(term);
-          const accMatch = t.account?.toLowerCase().includes(term);
-          if (!descMatch && !catMatch && !accMatch) return false;
-        }
-
+        if (term && ![t.description, t.category, t.account].some(v => v?.toLowerCase().includes(term))) return false;
         if (typeFilter !== 'all' && t.type !== typeFilter) return false;
-        if (statusFilter === 'paid' && !t.paid) return false;
-        if (statusFilter === 'pending' && t.paid) return false;
-        if (selectedAccountFilter && t.account !== selectedAccountFilter) return false;
-        if (categoryFilter && t.category !== categoryFilter) return false;
-
-        // Filtro por Data
-        if (startDate && t.date && t.date < startDate) return false;
-        if (endDate && t.date && t.date > endDate) return false;
-
-        // Filtro por Valor
-        const amountNum = Number(t.amount || 0);
-        if (minAmount !== '' && !isNaN(Number(minAmount)) && amountNum < Number(minAmount)) return false;
-        if (maxAmount !== '' && !isNaN(Number(maxAmount)) && amountNum > Number(maxAmount)) return false;
-
+        if (pendingOnly && t.paid) return false;
+        if (accountFilter && t.account !== accountFilter) return false;
+        if (categoryFilter && (t.category !== categoryFilter || t.type !== 'expense')) return false;
+        if (startDate && t.date < startDate) return false;
+        if (endDate && t.date > endDate) return false;
+        if (Number.isFinite(min) && t.amount < min) return false;
+        if (Number.isFinite(max) && t.amount > max) return false;
         return true;
       })
       .sort((a, b) => {
         let result = 0;
-        if (sortBy === 'date') {
-          result = (a.date || '').localeCompare(b.date || '');
-        } else if (sortBy === 'amount') {
-          result = Number(a.amount || 0) - Number(b.amount || 0);
-        } else if (sortBy === 'description') {
-          result = (a.description || '').localeCompare(b.description || '');
-        }
+        if (sortBy === 'date') result = (a.date || '').localeCompare(b.date || '');
+        else if (sortBy === 'amount') result = a.amount - b.amount;
+        else result = (a.description || '').localeCompare(b.description || '');
         return sortOrder === 'asc' ? result : -result;
       });
-  }, [
-    transactions,
-    searchTerm,
-    typeFilter,
-    statusFilter,
-    selectedAccountFilter,
-    categoryFilter,
-    startDate,
-    endDate,
-    minAmount,
-    maxAmount,
-    sortBy,
-    sortOrder
-  ]);
+  }, [transactions, searchTerm, typeFilter, pendingOnly, accountFilter, categoryFilter, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
 
-  // Soma dos valores filtrados
-  const filteredTotal = useMemo(() => {
-    return filteredTransactions.reduce((acc, t) => {
-      const val = Number(t.amount || 0);
-      if (t.type === 'transfer') return acc;
-      return t.type === 'expense' ? acc - val : acc + val;
-    }, 0);
-  }, [filteredTransactions]);
+  // Agrupado por dia quando ordenado por data; senão, um grupo só.
+  const groups = useMemo(() => {
+    if (sortBy !== 'date') return [{ key: 'all', title: null, items: filtered }];
+    const byDay = [];
+    for (const tx of filtered) {
+      const last = byDay[byDay.length - 1];
+      if (last && last.key === tx.date) last.items.push(tx);
+      else byDay.push({ key: tx.date, title: formatDayHeader(tx.date), items: [tx] });
+    }
+    return byDay;
+  }, [filtered, sortBy]);
+
+  const balance = filtered.reduce((sum, t) => (t.type === 'transfer' ? sum : t.type === 'expense' ? sum - t.amount : sum + t.amount), 0);
 
   return (
-    <Card>
-      {/* Barra de Busca e Filtros */}
-      <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
-          {/* Busca */}
+    <Card sx={{ overflow: 'hidden' }}>
+      {/* Busca e filtros */}
+      <Box sx={{ p: { xs: 1.5, sm: 2 }, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
             size="small"
             fullWidth
-            placeholder="Buscar por descrição, cartão ou categoria..."
+            placeholder="Buscar lançamento"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -188,434 +323,127 @@ export function TransactionList({
               ),
               endAdornment: searchTerm && (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchTerm('')}>
+                  <IconButton size="small" onClick={() => setSearchTerm('')} aria-label="Limpar busca">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
               )
             }}
+            sx={{ '& .MuiInputBase-root': { minHeight: 44 } }}
           />
-
-          {/* Botão de Filtros Avançados */}
-          <Button
-            size="small"
-            variant={showAdvancedFilters || hasActiveAdvancedFilters ? 'contained' : 'outlined'}
-            color={hasActiveAdvancedFilters ? 'secondary' : 'inherit'}
-            startIcon={<FilterListIcon />}
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            sx={{ whiteSpace: 'nowrap', minWidth: 120, textTransform: 'none' }}
+          <IconButton
+            onClick={() => setShowAdvanced(v => !v)}
+            aria-label="Mais filtros"
+            color={hasAdvanced ? 'secondary' : 'default'}
+            sx={{ width: 44, height: 44, border: '1px solid', borderColor: hasAdvanced ? 'secondary.main' : 'divider', borderRadius: '12px' }}
           >
-            {hasActiveAdvancedFilters ? 'Filtros (Ativos)' : 'Filtrar'}
-          </Button>
-
-          {/* Chips de Filtro Rápido */}
-          <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: { xs: 0.5, sm: 0 }, alignItems: 'center' }}>
-            <Chip
-              label="Todas"
-              clickable
-              size="small"
-              color={typeFilter === 'all' ? 'primary' : 'default'}
-              variant={typeFilter === 'all' ? 'filled' : 'outlined'}
-              onClick={() => setTypeFilter('all')}
-            />
-            <Chip
-              label="Despesas"
-              clickable
-              size="small"
-              color={typeFilter === 'expense' ? 'error' : 'default'}
-              variant={typeFilter === 'expense' ? 'filled' : 'outlined'}
-              onClick={() => setTypeFilter('expense')}
-            />
-            <Chip
-              label="Receitas"
-              clickable
-              size="small"
-              color={typeFilter === 'income' ? 'secondary' : 'default'}
-              variant={typeFilter === 'income' ? 'filled' : 'outlined'}
-              onClick={() => setTypeFilter('income')}
-            />
-            <Chip
-              label="Transferências"
-              clickable
-              size="small"
-              color={typeFilter === 'transfer' ? 'info' : 'default'}
-              variant={typeFilter === 'transfer' ? 'filled' : 'outlined'}
-              onClick={() => setTypeFilter('transfer')}
-            />
-            <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-            <Chip
-              label="Pagas"
-              clickable
-              size="small"
-              color={statusFilter === 'paid' ? 'secondary' : 'default'}
-              variant={statusFilter === 'paid' ? 'filled' : 'outlined'}
-              onClick={() => setStatusFilter(statusFilter === 'paid' ? 'all' : 'paid')}
-            />
-            <Chip
-              label="Pendentes"
-              clickable
-              size="small"
-              color={statusFilter === 'pending' ? 'warning' : 'default'}
-              variant={statusFilter === 'pending' ? 'filled' : 'outlined'}
-              onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
-            />
-          </Stack>
+            <TuneIcon />
+          </IconButton>
         </Box>
 
-        {/* Painel Expansível de Filtros Avançados */}
-        <Collapse in={showAdvancedFilters}>
-          <Box
-            sx={{
-              p: 2,
-              borderRadius: 2,
-              bgcolor: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid',
-              borderColor: 'divider',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
-            }}
-          >
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr 1fr' }, gap: 1.5 }}>
-              {/* Filtro por Data Inicial */}
-              <TextField
-                label="Data inicial"
-                type="date"
-                size="small"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
+        {/* Filtros rápidos: rolam na horizontal dentro do card, sem alargar a página */}
+        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', mx: { xs: -1.5, sm: 0 }, px: { xs: 1.5, sm: 0 }, pb: 0.25, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
+          {TYPE_FILTERS.map(f => (
+            <Chip
+              key={f.value}
+              label={f.label}
+              clickable
+              color={typeFilter === f.value ? 'primary' : 'default'}
+              variant={typeFilter === f.value ? 'filled' : 'outlined'}
+              onClick={() => setTypeFilter(f.value)}
+              sx={{ height: 36, flexShrink: 0 }}
+            />
+          ))}
+          <Chip
+            label="Pendentes"
+            clickable
+            color={pendingOnly ? 'warning' : 'default'}
+            variant={pendingOnly ? 'filled' : 'outlined'}
+            onClick={() => setPendingOnly(v => !v)}
+            sx={{ height: 36, flexShrink: 0 }}
+          />
+        </Box>
 
-              {/* Filtro por Data Final */}
-              <TextField
-                label="Data final"
-                type="date"
-                size="small"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-
-              {/* Filtro por Valor Mínimo */}
-              <TextField
-                label="Valor mínimo (R$)"
-                type="number"
-                size="small"
-                placeholder="Ex.: 50"
-                value={minAmount}
-                onChange={(e) => setMinAmount(e.target.value)}
-                fullWidth
-              />
-
-              {/* Filtro por Valor Máximo */}
-              <TextField
-                label="Valor máximo (R$)"
-                type="number"
-                size="small"
-                placeholder="Ex.: 500"
-                value={maxAmount}
-                onChange={(e) => setMaxAmount(e.target.value)}
-                fullWidth
-              />
-            </Box>
-
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
-              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
-                {/* Filtro de Categoria */}
-                <FormControl size="small" sx={{ minWidth: 180 }}>
-                  <InputLabel>Categoria</InputLabel>
-                  <Select
-                    value={categoryFilter}
-                    label="Categoria"
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                  >
-                    <MenuItem value="">
-                      <em>Todas as categorias</em>
-                    </MenuItem>
-                    {categories.map((c) => {
-                      return (
-                        <MenuItem key={c.id} value={c.name}>
-                          {c.name}
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                </FormControl>
-
-                {/* Ordenação para mobile */}
-                {isMobile && (
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <FormControl size="small" sx={{ minWidth: 130 }}>
-                      <InputLabel>Ordenar por</InputLabel>
-                      <Select
-                        value={sortBy}
-                        label="Ordenar por"
-                        onChange={(e) => setSortBy(e.target.value)}
-                      >
-                        <MenuItem value="date">Data</MenuItem>
-                        <MenuItem value="amount">Valor</MenuItem>
-                        <MenuItem value="description">Descrição</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="inherit"
-                      onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                      startIcon={<SwapVertIcon />}
-                      sx={{ textTransform: 'none' }}
-                    >
-                      {sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
-                    </Button>
-                  </Box>
-                )}
-              </Box>
-
-              {/* Botão de Limpar Filtros */}
-              {(hasActiveAdvancedFilters || searchTerm || typeFilter !== 'all' || statusFilter !== 'all' || selectedAccountFilter) && (
-                <Button
-                  size="small"
-                  variant="text"
-                  color="inherit"
-                  startIcon={<FilterAltOffIcon />}
-                  onClick={clearAllFilters}
-                  sx={{ textTransform: 'none', fontSize: '0.8rem' }}
-                >
-                  Limpar todos os filtros
-                </Button>
-              )}
-            </Box>
+        <Collapse in={showAdvanced}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 0.5 }}>
+            <TextField label="De" type="date" size="small" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+            <TextField label="Até" type="date" size="small" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+            <TextField label="Valor mínimo" size="small" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} inputProps={{ inputMode: 'decimal' }} InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }} />
+            <TextField label="Valor máximo" size="small" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} inputProps={{ inputMode: 'decimal' }} InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }} />
+            <FormControl size="small">
+              <InputLabel>Ordenar por</InputLabel>
+              <Select value={sortBy} label="Ordenar por" onChange={(e) => setSortBy(e.target.value)}>
+                <MenuItem value="date">Data</MenuItem>
+                <MenuItem value="amount">Valor</MenuItem>
+                <MenuItem value="description">Descrição</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small">
+              <InputLabel>Ordem</InputLabel>
+              <Select value={sortOrder} label="Ordem" onChange={(e) => setSortOrder(e.target.value)}>
+                <MenuItem value="desc">{sortBy === 'date' ? 'Mais recentes' : sortBy === 'amount' ? 'Maiores' : 'Z → A'}</MenuItem>
+                <MenuItem value="asc">{sortBy === 'date' ? 'Mais antigos' : sortBy === 'amount' ? 'Menores' : 'A → Z'}</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         </Collapse>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography variant="caption" color="text.secondary">
-              Mostrando <strong>{filteredTransactions.length}</strong> de <strong>{transactions.length}</strong> lançamentos
-            </Typography>
-            {hasActiveAdvancedFilters && (
-              <Chip
-                size="small"
-                label="Filtros personalizados aplicados"
-                color="secondary"
-                variant="outlined"
-                onDelete={clearAllFilters}
-                sx={{ height: 22, fontSize: '0.72rem' }}
-              />
-            )}
-            {selectedAccountFilter && (
-              <Chip
-                size="small"
-                label={`Conta: ${selectedAccountFilter}`}
-                onDelete={() => onSelectAccountFilter && onSelectAccountFilter('')}
-                color="primary"
-                variant="outlined"
-                sx={{ height: 22, fontSize: '0.72rem' }}
-              />
-            )}
+        {/* Filtros vindos da Visão Geral (conta, categoria) */}
+        {(accountFilter || categoryFilter) && (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {accountFilter && <Chip label={accountFilter} onDelete={() => onAccountFilterChange?.('')} color="primary" variant="outlined" sx={{ height: 32 }} />}
+            {categoryFilter && <Chip label={categoryFilter} onDelete={() => onCategoryFilterChange?.('')} color="primary" variant="outlined" sx={{ height: 32 }} />}
           </Box>
+        )}
 
-          {/* Subtotal dos lançamentos filtrados */}
-          {filteredTransactions.length > 0 && (
-            <Typography variant="caption" fontWeight={600} color={filteredTotal >= 0 ? 'secondary.main' : 'error.main'}>
-              Total filtrado: {formatBRL(Math.abs(filteredTotal))} {filteredTotal >= 0 ? '(Saldo positivo)' : '(Despesas)'}
-            </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minHeight: 32 }}>
+          <Typography variant="caption" color="text.secondary">
+            {filtered.length} {filtered.length === 1 ? 'lançamento' : 'lançamentos'}
+            {filtered.length > 0 && <> · saldo <Box component="span" sx={{ color: balance >= 0 ? 'secondary.main' : 'error.light', fontWeight: 700 }}>{balance >= 0 ? '' : '− '}{formatBRL(Math.abs(balance))}</Box></>}
+          </Typography>
+          {hasAnyFilter && (
+            <Button size="small" color="inherit" onClick={clearAll} sx={{ minHeight: 32, color: 'text.secondary' }}>
+              Limpar filtros
+            </Button>
           )}
         </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, mt: -0.75 }}>
+          Toque para editar · deslize → pago · ← excluir
+        </Typography>
       </Box>
 
-      <Divider />
-
-      {/* Lista de Transações */}
-      {filteredTransactions.length === 0 ? (
-        <Box sx={{ p: 6, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            Nenhum lançamento encontrado com os filtros selecionados.
-          </Typography>
-        </Box>
-      ) : isMobile ? (
-        /* Versão Otimizada para Celular (Card List) */
-        <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {filteredTransactions.map((tx) => {
-            return (
-              <Box
-                key={tx.id}
-                sx={{
-                  p: 1.5,
-                  borderRadius: 2.5,
-                  bgcolor: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 1.5
-                }}
-              >
-                <Checkbox
-                  checked={Boolean(tx.paid)}
-                  onChange={() => onTogglePaid(tx.id)}
-                  icon={<RadioButtonUncheckedIcon fontSize="small" />}
-                  checkedIcon={<CheckCircleIcon fontSize="small" color="secondary" />}
-                  sx={{ p: 0.5 }}
-                />
-
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" fontWeight={600} noWrap>
-                      {tx.description}
-                    </Typography>
-                    {tx.installment && (
-                      <Chip
-                        label={`${tx.installment.current}/${tx.installment.total}`}
-                        size="small"
-                        color="info"
-                        sx={{ height: 18, fontSize: '0.65rem' }}
-                      />
-                    )}
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    {tx.account} • {formatDate(tx.date)}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography
-                    variant="body2"
-                    fontWeight={700}
-                    color={amountColor(tx.type)}
-                  >
-                    {amountPrefix(tx.type)}{formatBRL(tx.amount)}
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5, mt: 0.5 }}>
-                    <IconButton size="small" onClick={() => onEdit(tx)} sx={{ p: 0.5 }}>
-                      <EditIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => onDelete(tx.id)} sx={{ p: 0.5, color: 'error.main' }}>
-                      <DeleteIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                  </Box>
-                </Box>
-              </Box>
-            );
-          })}
+      {/* Lista */}
+      {filtered.length === 0 ? (
+        <Box sx={{ p: 5, textAlign: 'center', borderTop: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="body2" color="text.secondary">Nenhum lançamento encontrado.</Typography>
+          {hasAnyFilter && <Button onClick={clearAll} sx={{ mt: 1 }}>Limpar filtros</Button>}
         </Box>
       ) : (
-        /* Versão Tabela para Desktop / Tablet */
-        <Box sx={{ overflowX: 'auto' }}>
-          <Table size="small">
-            <TableHead sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)' }}>
-              <TableRow>
-                <TableCell align="center" sx={{ width: 60, fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>
-                  <TableSortLabel
-                    active={sortBy === 'description'}
-                    direction={sortBy === 'description' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('description')}
-                  >
-                    Descrição & Categoria
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Conta / Cartão</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>
-                  <TableSortLabel
-                    active={sortBy === 'date'}
-                    direction={sortBy === 'date' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('date')}
-                  >
-                    Data
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>
-                  <TableSortLabel
-                    active={sortBy === 'amount'}
-                    direction={sortBy === 'amount' ? sortOrder : 'asc'}
-                    onClick={() => handleSort('amount')}
-                  >
-                    Valor
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell align="right" sx={{ width: 100, fontWeight: 700 }}>Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredTransactions.map((tx) => {
-                    return (
-                  <TableRow key={tx.id} hover sx={{ opacity: tx.paid ? 0.9 : 1 }}>
-                    <TableCell align="center">
-                      <Checkbox
-                        checked={Boolean(tx.paid)}
-                        onChange={() => onTogglePaid(tx.id)}
-                        icon={<RadioButtonUncheckedIcon fontSize="small" />}
-                        checkedIcon={<CheckCircleIcon fontSize="small" color="secondary" />}
-                        sx={{ p: 0.5 }}
-                      />
-                    </TableCell>
-
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                        <Typography variant="body2" fontWeight={600}>
-                          {tx.description}
-                        </Typography>
-                        {tx.installment && (
-                          <Chip
-                            label={`Parcela ${tx.installment.current}/${tx.installment.total}`}
-                            size="small"
-                            color="info"
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
-                        )}
-                        <Chip
-                          label={tx.category}
-                          size="small"
-                          variant="outlined"
-                          sx={{ height: 20, fontSize: '0.7rem' }}
-                        />
-                      </Box>
-                    </TableCell>
-
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <CreditCardIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
-                          {tx.account}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDate(tx.date)}
-                      </Typography>
-                    </TableCell>
-
-                    <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        fontWeight={700}
-                        color={amountColor(tx.type)}
-                      >
-                        {amountPrefix(tx.type)}{formatBRL(tx.amount)}
-                      </Typography>
-                    </TableCell>
-
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={() => onEdit(tx)} sx={{ mr: 0.5 }}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => onDelete(tx.id)} sx={{ color: 'error.main' }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Box>
+        groups.map(group => {
+          const dayExpenses = group.items.reduce((s, t) => (t.type === 'expense' ? s + t.amount : s), 0);
+          return (
+            <Box key={group.key}>
+              {group.title && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: { xs: 1.5, sm: 2 }, py: 0.75, bgcolor: 'rgba(255, 255, 255, 0.03)', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="caption" fontWeight={700} color="text.secondary">{group.title}</Typography>
+                  {dayExpenses > 0 && <Typography variant="caption" color="text.secondary">− {formatBRL(dayExpenses)}</Typography>}
+                </Box>
+              )}
+              {group.items.map((tx, i) => (
+                <Box key={tx.id} sx={{ borderTop: i > 0 || !group.title ? '1px solid' : 'none', borderColor: 'divider' }}>
+                  <TransactionRow
+                    tx={tx}
+                    categories={categories}
+                    onEdit={onEdit}
+                    onPickCategory={onPickCategory}
+                    onTogglePaid={onTogglePaid}
+                    onDelete={onDelete}
+                  />
+                </Box>
+              ))}
+            </Box>
+          );
+        })
       )}
     </Card>
   );

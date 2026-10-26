@@ -64,6 +64,10 @@ export const theme = createTheme({
     button: {
       textTransform: 'none',
       fontWeight: 600
+    },
+    // Menor texto do app: 13px (abaixo disso fica ilegível no celular).
+    caption: {
+      fontSize: '0.8125rem'
     }
   },
   shape: {
@@ -104,7 +108,21 @@ export const theme = createTheme({
         paper: {
           borderRadius: 20,
           border: '1px solid rgba(255, 255, 255, 0.1)'
+        },
+        paperFullScreen: {
+          borderRadius: 0,
+          border: 'none',
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)'
         }
+      }
+    },
+    // No iPhone, campos com fonte menor que 16px fazem a tela dar zoom ao tocar.
+    MuiInputBase: {
+      styleOverrides: {
+        input: ({ theme }) => ({
+          [theme.breakpoints.down('sm')]: { fontSize: 16 }
+        })
       }
     },
     MuiChip: {

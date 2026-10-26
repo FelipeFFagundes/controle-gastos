@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useIsMobile } from '../useIsMobile';
 import {
   Dialog,
   DialogTitle,
@@ -21,6 +22,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { keys, usePluggyStatus, usePluggySync } from '../queries';
+import { useConfirm } from './ConfirmDialog';
 
 const PERIODS = [
   { value: '24h', label: 'Últimas 24h', desc: 'Apenas hoje' },
@@ -30,9 +32,11 @@ const PERIODS = [
 ];
 
 export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
   const status = usePluggyStatus(isOpen);
   const sync = usePluggySync();
+  const confirm = useConfirm();
   const [syncPeriod, setSyncPeriod] = useState('7d');
   const [clearBeforeSync, setClearBeforeSync] = useState(false);
   const [widgetLoading, setWidgetLoading] = useState(false);
@@ -77,9 +81,14 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
     }
   };
 
-  const handleSync = (e) => {
+  const handleSync = async (e) => {
     e.preventDefault();
-    if (clearBeforeSync && !window.confirm('Isso apaga todos os lançamentos e cartões/contas antes de importar. Continuar?')) return;
+    if (clearBeforeSync && !(await confirm({
+      title: 'Apagar antes de importar?',
+      message: 'Todos os lançamentos e cartões/contas serão apagados e importados de novo do banco. Edições feitas no app serão perdidas.',
+      confirmLabel: 'Apagar e importar',
+      danger: true
+    }))) return;
     setError(null);
     setMessage(null);
     sync.mutate(
@@ -96,7 +105,7 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
   };
 
   return (
-    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <SyncIcon color="secondary" />
@@ -178,7 +187,7 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
                         <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.82rem' }}>
                           {opt.label}
                         </Typography>
-                        <Typography variant="caption" sx={{ fontSize: '0.68rem', opacity: 0.7 }}>
+                        <Typography variant="caption" sx={{ fontSize: '0.8125rem', opacity: 0.7 }}>
                           {opt.desc}
                         </Typography>
                       </Button>

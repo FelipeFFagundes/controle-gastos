@@ -66,7 +66,7 @@ export function apiRouter() {
   });
 
   router.put('/transactions/:id', async (req, res) => {
-    res.json({ transaction: await transactions.update(req.params.id, req.body || {}) });
+    res.json(await transactions.update(req.params.id, req.body || {}));
   });
 
   router.patch('/transactions/:id/toggle-paid', async (req, res) => {

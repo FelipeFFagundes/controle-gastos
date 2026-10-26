@@ -156,6 +156,18 @@ export async function setMonths(updates) {
   await db.batch(updates.map(u => ({ sql: 'UPDATE transactions SET month = ? WHERE id = ?', args: [u.month, u.id] })), 'write');
 }
 
+export async function listByCategory(category) {
+  const db = await getDb();
+  const { rows } = await db.execute({ sql: `${SELECT} WHERE t.type = 'expense' AND t.category = ?`, args: [category] });
+  return rows.map(toTransaction);
+}
+
+export async function setCategory(ids, category) {
+  if (!ids.length) return;
+  const db = await getDb();
+  await db.batch(ids.map(id => ({ sql: 'UPDATE transactions SET category = ? WHERE id = ?', args: [category, id] })), 'write');
+}
+
 export async function togglePaid(id) {
   const db = await getDb();
   await db.execute({ sql: 'UPDATE transactions SET paid = 1 - paid WHERE id = ?', args: [id] });

@@ -111,3 +111,21 @@ test('sincronizações simultâneas rodam uma de cada vez, sem duplicar', async 
   assert.equal(results[1].importedCount, 0);
   assert.equal(results[1].updatedCount, 5);
 });
+
+test('categoria escolhida para uma loja corrige as outras em "Outros" e vale nas próximas sincronizações', async () => {
+  const card = (await accountsService.list()).find(a => a.pluggyAccountId === 'pa-card');
+  const [manual] = await transactionsService.create({
+    description: 'LOJA', amount: 10, type: 'expense', category: 'Outros', accountId: card.id, date: '2026-10-12'
+  });
+  const synced = (await transactionsService.getMonth('2026-11')).transactions.find(t => t.description.startsWith('LOJA'));
+  assert.equal(synced.category, 'Outros');
+
+  const { recategorized } = await transactionsService.update(synced.id, { category: 'Compras & Vestuário' });
+  assert.equal(recategorized, 1);
+  const months = [...(await transactionsService.getMonth('2026-10')).transactions, ...(await transactionsService.getMonth('2026-11')).transactions];
+  assert.equal(months.find(t => t.id === manual.id).category, 'Compras & Vestuário');
+
+  await pluggySync.sync({ period: 'all', clearExisting: true });
+  const reimported = (await transactionsService.getMonth('2026-11')).transactions.find(t => t.description.startsWith('LOJA'));
+  assert.equal(reimported.category, 'Compras & Vestuário');
+});

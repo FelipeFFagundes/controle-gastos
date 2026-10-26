@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useIsMobile } from '../useIsMobile';
 import {
   Dialog,
   DialogTitle,
@@ -46,6 +47,7 @@ export function AccountManagementModal({
   onSaveAccount,
   onDeleteAccount
 }) {
+  const isMobile = useIsMobile();
   const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState('');
   const [type, setType] = useState('credit_card');
@@ -102,7 +104,7 @@ export function AccountManagementModal({
   };
 
   return (
-    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <CreditCardIcon color="primary" />
@@ -196,7 +198,7 @@ export function AccountManagementModal({
                     <MenuItem value="previous_month">Antecipar 1 mês (-1) (Nubank - fatura projetada para mês anterior)</MenuItem>
                     <MenuItem value="next_month">Postergar 1 mês (+1)</MenuItem>
                   </Select>
-                  <FormHelperText sx={{ fontSize: '0.72rem' }}>
+                  <FormHelperText sx={{ fontSize: '0.8125rem' }}>
                     {billingCycle === 'previous_month'
                       ? 'Recomendado para Nubank: parcelas que o banco projeta para o mês seguinte entram na competência deste mês.'
                       : 'Usa a data original registrada pelo banco (ideal para Itaú e cartões tradicionais).'}
@@ -258,7 +260,7 @@ export function AccountManagementModal({
                     <Chip
                       label={acc.type === 'credit_card' ? 'Cartão de Crédito' : 'Conta / PIX'}
                       size="small"
-                      sx={{ height: 20, fontSize: '0.65rem' }}
+                      sx={{ height: 20, fontSize: '0.8125rem' }}
                       color={acc.type === 'credit_card' ? 'warning' : 'info'}
                       variant="outlined"
                     />
@@ -266,7 +268,7 @@ export function AccountManagementModal({
                       <Chip
                         label="Ciclo Nubank (-1m)"
                         size="small"
-                        sx={{ height: 20, fontSize: '0.65rem', borderColor: '#a855f7', color: '#c084fc' }}
+                        sx={{ height: 20, fontSize: '0.8125rem', borderColor: '#a855f7', color: '#c084fc' }}
                         variant="outlined"
                       />
                     )}
@@ -274,7 +276,7 @@ export function AccountManagementModal({
                       <Chip
                         label={`Fecha dia ${acc.closingDay}`}
                         size="small"
-                        sx={{ height: 20, fontSize: '0.65rem' }}
+                        sx={{ height: 20, fontSize: '0.8125rem' }}
                         color="warning"
                         variant="outlined"
                       />

@@ -2,10 +2,12 @@ import * as pluggy from '../integrations/pluggy.js';
 import * as accountsRepo from '../repositories/accounts.js';
 import * as transactionsRepo from '../repositories/transactions.js';
 import * as settingsRepo from '../repositories/settings.js';
+import * as categoryRulesRepo from '../repositories/categoryRules.js';
 import { getDb } from '../db/client.js';
 import { config } from '../config.js';
 import { billingMonth } from '../domain/billing.js';
 import { installmentGroupKey } from '../domain/installments.js';
+import { merchantKey } from '../domain/merchant.js';
 import { daysAgo } from '../domain/months.js';
 import { classifyPluggyTransaction, defaultAccountFromPluggy, isCreditAccount } from '../domain/pluggyMapping.js';
 import { badRequest, HttpError } from './errors.js';
@@ -105,6 +107,7 @@ async function runSync({ period = 'all', clearExisting = false, itemIds = [] } =
 
   // 3. Importa.
   const ignored = await transactionsRepo.listIgnoredPluggyIds();
+  const categoryRules = await categoryRulesRepo.listAll();
   const seen = new Set();
   const statements = [];
   let importedCount = 0;
@@ -140,8 +143,11 @@ async function runSync({ period = 'all', clearExisting = false, itemIds = [] } =
         }));
         updatedCount++;
       } else {
+        // Categoria que o usuário já escolheu para esta loja vence o mapeamento automático.
+        const learned = incoming.type === 'expense' ? categoryRules.get(merchantKey(incoming.description)) : null;
         statements.push(transactionsRepo.insertStatement({
           ...incoming,
+          category: learned || incoming.category,
           accountId: account.id,
           month,
           paid: false,
