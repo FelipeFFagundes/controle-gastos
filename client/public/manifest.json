@@ -4,8 +4,8 @@
   "description": "App de controle financeiro pessoal, faturas e parcelamentos",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#090e17",
-  "theme_color": "#090e17",
+  "background_color": "#0C1311",
+  "theme_color": "#0C1311",
   "orientation": "portrait",
   "icons": [
     {

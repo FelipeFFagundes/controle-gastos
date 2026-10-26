@@ -1,4 +1,4 @@
-import { DEFAULT_CATEGORIES } from './defaults.js';
+import { DEFAULT_CATEGORIES, LEGACY_ACCOUNT_COLORS, LEGACY_CATEGORY_COLORS } from './defaults.js';
 
 // Migrações incrementais. Cada item roda uma única vez, em ordem, e fica registrado
 // em schema_version. Para mudar o esquema, adicione um item novo ao fim da lista.
@@ -62,6 +62,17 @@ const MIGRATIONS = [
       merchant_key TEXT PRIMARY KEY,
       category TEXT NOT NULL
     )`
+  ],
+  // Paleta nova: troca as cores padrão antigas pelas equivalentes. Cores escolhidas pelo usuário ficam.
+  [
+    ...DEFAULT_CATEGORIES.map(c => ({
+      sql: 'UPDATE categories SET color = ? WHERE id = ? AND lower(color) = ?',
+      args: [c.color, c.id, LEGACY_CATEGORY_COLORS[c.id]]
+    })),
+    ...Object.entries(LEGACY_ACCOUNT_COLORS).map(([from, to]) => ({
+      sql: 'UPDATE accounts SET color = ? WHERE lower(color) = ?',
+      args: [to, from]
+    }))
   ]
 ];
 
@@ -70,7 +81,7 @@ export async function migrate(client) {
   const current = await currentVersion(client);
 
   for (let version = current + 1; version <= MIGRATIONS.length; version++) {
-    const statements = MIGRATIONS[version - 1].map(sql => ({ sql, args: [] }));
+    const statements = MIGRATIONS[version - 1].map(s => (typeof s === 'string' ? { sql: s, args: [] } : s));
     statements.push({ sql: 'INSERT INTO schema_version (version) VALUES (?)', args: [version] });
     if (version === 1) {
       for (const c of DEFAULT_CATEGORIES) {

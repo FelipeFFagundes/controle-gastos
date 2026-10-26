@@ -25,12 +25,12 @@ const ICONS = {
   Layers: CategoryIcon
 };
 
-const TRANSFER = { color: '#64748b', Icon: SwapHorizIcon };
+const TRANSFER = { color: '#7D8B86', Icon: SwapHorizIcon };
 
 export function categoryVisual(categoryName, categories = [], type = 'expense') {
   if (type === 'transfer') return TRANSFER;
   const category = categories.find(c => c.name === categoryName);
-  return { color: category?.color || '#64748b', Icon: ICONS[category?.icon] || CategoryIcon };
+  return { color: category?.color || '#7D8B86', Icon: ICONS[category?.icon] || CategoryIcon };
 }
 
 // Círculo com o ícone e a cor da categoria. `paid` mostra um selo de "pago".

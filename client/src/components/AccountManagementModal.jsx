@@ -29,15 +29,18 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 
+// Mesma família de tons da paleta do app (ver palette.js), com o roxo e o laranja dos bancos.
 const COLOR_OPTIONS = [
-  { label: 'Dourado / XP', value: '#eab308' },
-  { label: 'Roxo / Nubank', value: '#a855f7' },
-  { label: 'Laranja / Itaú', value: '#f97316' },
-  { label: 'Rosa / Natalina', value: '#ec4899' },
-  { label: 'Azul / Principal', value: '#3b82f6' },
-  { label: 'Verde / Salário', value: '#10b981' },
-  { label: 'Vermelho / Fixas', value: '#ef4444' },
-  { label: 'Cinza / Outros', value: '#64748b' }
+  { label: 'Roxo / Nubank', value: '#9E6AD3' },
+  { label: 'Laranja / Itaú', value: '#EC7000' },
+  { label: 'Açafrão', value: '#BF8418' },
+  { label: 'Jade', value: '#34C3A2' },
+  { label: 'Verde', value: '#6CCB7A' },
+  { label: 'Azul', value: '#4A82D6' },
+  { label: 'Ciano', value: '#1FA3B8' },
+  { label: 'Rosa', value: '#D45A9E' },
+  { label: 'Coral', value: '#D9634F' },
+  { label: 'Cinza', value: '#7D8B86' }
 ];
 
 export function AccountManagementModal({
@@ -51,7 +54,7 @@ export function AccountManagementModal({
   const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState('');
   const [type, setType] = useState('credit_card');
-  const [color, setColor] = useState('#eab308');
+  const [color, setColor] = useState('#BF8418');
   const [billingCycle, setBillingCycle] = useState('same_month');
   const [closingDay, setClosingDay] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -62,7 +65,7 @@ export function AccountManagementModal({
     setEditingId(acc.id);
     setName(acc.name);
     setType(acc.type || 'credit_card');
-    setColor(acc.color || '#3b82f6');
+    setColor(acc.color || '#4A82D6');
     setBillingCycle(acc.billingCycle || (acc.monthOffset === -1 ? 'previous_month' : 'same_month'));
     setClosingDay(acc.closingDay ? String(acc.closingDay) : '');
     setIsCreating(false);
@@ -72,7 +75,7 @@ export function AccountManagementModal({
     setEditingId('new');
     setName('');
     setType('credit_card');
-    setColor('#eab308');
+    setColor('#BF8418');
     setBillingCycle('same_month');
     setClosingDay('');
     setIsCreating(true);
@@ -268,7 +271,7 @@ export function AccountManagementModal({
                       <Chip
                         label="Ciclo Nubank (-1m)"
                         size="small"
-                        sx={{ height: 20, fontSize: '0.8125rem', borderColor: '#a855f7', color: '#c084fc' }}
+                        sx={{ height: 20, fontSize: '0.8125rem', borderColor: 'info.main', color: 'info.light' }}
                         variant="outlined"
                       />
                     )}

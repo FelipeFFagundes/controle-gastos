@@ -60,7 +60,7 @@ export function SummaryCards({
   const surplusTarget = customSurplusTarget !== null ? customSurplusTarget : netBalance;
   const committedPercent = totalIncome > 0 ? Math.min(100, Math.round((totalExpense / totalIncome) * 100)) : 0;
   const isOverBudget = availableToSpend < 0;
-  const accent = isOverBudget ? 'error' : 'secondary';
+  const accent = isOverBudget ? 'error' : 'primary';
 
   const openSurplusEditor = () => {
     setSurplusInput(formatAmountInput(surplusTarget));
@@ -88,7 +88,7 @@ export function SummaryCards({
             p: { xs: 2.25, sm: 2.75 },
             border: '1.5px solid',
             borderColor: `${accent}.main`,
-            bgcolor: isOverBudget ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)'
+            bgcolor: isOverBudget ? 'rgba(239, 117, 100, 0.06)' : 'rgba(52, 195, 162, 0.07)'
           }}
         >
           <Typography variant="body2" fontWeight={600} sx={{ color: `${accent}.light` }}>
@@ -156,7 +156,7 @@ export function SummaryCards({
             <Stat
               label="Sobra calculada (entradas − saídas)"
               value={netBalance}
-              color={netBalance >= 0 ? 'info.light' : 'error.main'}
+              color={netBalance >= 0 ? 'primary.light' : 'error.main'}
             />
           </Box>
         </Box>

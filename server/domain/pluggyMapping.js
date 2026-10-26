@@ -74,12 +74,12 @@ export function defaultAccountFromPluggy(pluggyAccount) {
   const lower = raw.toLowerCase();
 
   let name = raw || (isCredit ? 'Cartão de Crédito' : 'Conta Bancária');
-  let color = isCredit ? '#eab308' : '#3b82f6';
+  let color = isCredit ? '#BF8418' : '#4A82D6';
   let closingDay = null;
 
   if (lower === 'platinum' || lower.includes('nubank') || lower.includes('nu pagamentos')) {
     name = isCredit || lower === 'platinum' ? 'Cartão Nubank' : 'Conta Nubank';
-    color = '#820ad1';
+    color = '#9E6AD3';
     if (isCredit) closingDay = 28;
   } else if (lower.includes('latam')) {
     name = isCredit ? 'Cartão Itaú LATAM Pass' : raw;

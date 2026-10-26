@@ -80,7 +80,7 @@ export function InstallmentsTracker({
   const accountColorMap = useMemo(() => {
     const map = {};
     (accounts || []).forEach(acc => {
-      map[acc.name] = acc.color || '#3b82f6';
+      map[acc.name] = acc.color || '#7D8B86';
     });
     return map;
   }, [accounts]);
@@ -132,7 +132,7 @@ export function InstallmentsTracker({
       if (!groups[acc]) {
         groups[acc] = {
           accountName: acc,
-          color: accountColorMap[acc] || '#eab308',
+          color: accountColorMap[acc] || '#7D8B86',
           items: [],
           totalThisMonth: 0,
           totalRemainingDebt: 0
@@ -242,7 +242,7 @@ export function InstallmentsTracker({
             {accountOptions.map(accName => {
               const count = installments.filter(i => i.account === accName).length;
               const isSelected = selectedAccount === accName;
-              const accColor = accountColorMap[accName] || '#3b82f6';
+              const accColor = accountColorMap[accName] || '#7D8B86';
               return (
                 <Chip
                   key={accName}
@@ -414,7 +414,7 @@ function InstallmentRowItem({
   isMobile,
   isTablet,
   showAccountBadge = false,
-  accountColor = '#3b82f6'
+  accountColor = '#7D8B86'
 }) {
   const current = item.currentInstallment || 1;
   const total = item.totalInstallments || 1;
@@ -626,12 +626,12 @@ function InstallmentRowItem({
                     borderColor: isCurrent
                       ? 'warning.main'
                       : isPast
-                        ? 'rgba(34, 197, 94, 0.3)'
+                        ? 'rgba(108, 203, 122, 0.3)'
                         : 'divider',
                     bgcolor: isCurrent
-                      ? 'rgba(245, 158, 11, 0.1)'
+                      ? 'rgba(235, 181, 74, 0.1)'
                       : isPast
-                        ? 'rgba(34, 197, 94, 0.05)'
+                        ? 'rgba(108, 203, 122, 0.06)'
                         : 'rgba(255, 255, 255, 0.02)',
                     minWidth: 100,
                     textAlign: 'center'

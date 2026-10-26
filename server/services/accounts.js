@@ -90,7 +90,7 @@ function parseInput(input) {
   return {
     name,
     type,
-    color: input.color || '#3b82f6',
+    color: input.color || '#4A82D6',
     closingDay,
     monthOffset,
     pluggyAccountId: input.pluggyAccountId ?? null

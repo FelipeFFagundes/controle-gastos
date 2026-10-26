@@ -104,9 +104,9 @@ export function PinLockScreen({ onUnlock }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: '#0a0f1d',
+        bgcolor: '#0C1311',
         p: 2,
-        backgroundImage: 'radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 60%)'
+        backgroundImage: 'radial-gradient(circle at 50% 20%, rgba(52, 195, 162, 0.14) 0%, transparent 60%)'
       }}
     >
       <Card
@@ -116,7 +116,7 @@ export function PinLockScreen({ onUnlock }) {
           borderRadius: 4,
           border: '1px solid',
           borderColor: 'divider',
-          bgcolor: 'rgba(15, 23, 42, 0.85)',
+          bgcolor: 'rgba(19, 29, 26, 0.88)',
           backdropFilter: 'blur(16px)',
           boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
           overflow: 'hidden',
@@ -141,7 +141,7 @@ export function PinLockScreen({ onUnlock }) {
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 16px auto',
-              boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)'
+              boxShadow: '0 8px 16px rgba(52, 195, 162, 0.3)'
             }}
           >
             <LockOutlinedIcon sx={{ fontSize: 28 }} />
@@ -168,7 +168,7 @@ export function PinLockScreen({ onUnlock }) {
                     border: '2px solid',
                     borderColor: isFilled ? 'primary.main' : 'rgba(255, 255, 255, 0.2)',
                     bgcolor: isFilled ? 'primary.main' : 'transparent',
-                    boxShadow: isFilled ? '0 0 10px rgba(59, 130, 246, 0.6)' : 'none',
+                    boxShadow: isFilled ? '0 0 10px rgba(52, 195, 162, 0.6)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 />

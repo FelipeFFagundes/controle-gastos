@@ -32,8 +32,8 @@ export class ErrorBoundary extends React.Component {
             alignItems: 'center',
             justifyContent: 'center',
             p: 3,
-            bgcolor: '#090e17',
-            color: '#f8fafc'
+            bgcolor: '#0C1311',
+            color: '#ECF2EF'
           }}
         >
           <Paper
@@ -44,8 +44,8 @@ export class ErrorBoundary extends React.Component {
               width: '100%',
               textAlign: 'center',
               borderRadius: 3,
-              bgcolor: '#111927',
-              border: '1px solid rgba(239, 68, 68, 0.3)'
+              bgcolor: '#131D1A',
+              border: '1px solid rgba(239, 117, 100, 0.3)'
             }}
           >
             <ErrorOutlineIcon sx={{ fontSize: 56, color: 'error.main', mb: 2 }} />

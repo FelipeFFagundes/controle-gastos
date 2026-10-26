@@ -43,7 +43,7 @@ export function CategoryPicker({ transaction, categories = [], onSelect, onClose
                   px: 2.5,
                   gap: 2,
                   justifyContent: 'flex-start',
-                  bgcolor: selected ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
+                  bgcolor: selected ? 'action.selected' : 'transparent'
                 }}
               >
                 <CategoryAvatar category={category.name} categories={categories} size={36} />

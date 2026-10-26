@@ -1,44 +1,25 @@
 import { createTheme } from '@mui/material/styles';
+import { colors } from './palette';
 
+// Papéis das cores (ver palette.js):
+//   primary   -> marca (jade): botões, navegação, foco
+//   secondary -> entradas e saldo positivo (verde)
+//   error     -> saídas, estouro e ações destrutivas (coral)
+//   warning   -> pendências (açafrão)
+//   info      -> parcelamentos (lavanda)
 export const theme = createTheme({
   palette: {
     mode: 'dark',
-    primary: {
-      main: '#3b82f6', // Azul vibrante
-      light: '#60a5fa',
-      dark: '#1d4ed8',
-      contrastText: '#ffffff'
-    },
-    secondary: {
-      main: '#10b981', // Verde esmeralda
-      light: '#34d399',
-      dark: '#059669',
-      contrastText: '#ffffff'
-    },
-    error: {
-      main: '#f43f5e', // Rosa/Vermelho para despesas
-      light: '#fb7185',
-      dark: '#e11d48'
-    },
-    warning: {
-      main: '#f59e0b', // Âmbar para pendentes
-      light: '#fbbf24',
-      dark: '#d97706'
-    },
-    info: {
-      main: '#6366f1', // Índigo para parcelamentos
-      light: '#818cf8',
-      dark: '#4f46e5'
-    },
-    background: {
-      default: '#090e17', // Fundo ultra escuro elegante
-      paper: '#111927'    // Cartões e superfícies
-    },
-    text: {
-      primary: '#f8fafc',
-      secondary: '#94a3b8'
-    },
-    divider: 'rgba(255, 255, 255, 0.08)'
+    primary: { main: colors.brand, light: colors.brandLight, dark: colors.brandDark, contrastText: colors.onBrand },
+    secondary: { main: colors.income, light: colors.incomeLight, dark: colors.incomeDark, contrastText: colors.onIncome },
+    error: { main: colors.expense, light: colors.expenseLight, dark: colors.expenseDark, contrastText: '#2A0A05' },
+    warning: { main: colors.pending, light: colors.pendingLight, dark: colors.pendingDark, contrastText: '#2A1C02' },
+    info: { main: colors.installment, light: colors.installmentLight, dark: colors.installmentDark, contrastText: '#0D1238' },
+    success: { main: colors.income, light: colors.incomeLight, dark: colors.incomeDark, contrastText: colors.onIncome },
+    background: { default: colors.bg, paper: colors.surface },
+    text: { primary: colors.text, secondary: colors.textMuted },
+    divider: colors.border,
+    action: { hover: 'rgba(214, 236, 226, 0.05)', selected: 'rgba(52, 195, 162, 0.12)' }
   },
   typography: {
     fontFamily: [
@@ -74,6 +55,11 @@ export const theme = createTheme({
     borderRadius: 14
   },
   components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: { backgroundColor: colors.bg }
+      }
+    },
     MuiButton: {
       styleOverrides: {
         root: {
@@ -91,8 +77,8 @@ export const theme = createTheme({
         root: {
           borderRadius: 16,
           backgroundImage: 'none',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.5)'
+          border: `1px solid ${colors.border}`,
+          boxShadow: '0 4px 20px -4px rgba(0, 0, 0, 0.45)'
         }
       }
     },
@@ -107,14 +93,21 @@ export const theme = createTheme({
       styleOverrides: {
         paper: {
           borderRadius: 20,
-          border: '1px solid rgba(255, 255, 255, 0.1)'
+          border: `1px solid ${colors.border}`,
+          backgroundColor: colors.surfaceRaised
         },
         paperFullScreen: {
           borderRadius: 0,
           border: 'none',
+          backgroundColor: colors.surface,
           paddingTop: 'env(safe-area-inset-top)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
+      }
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: { backgroundColor: colors.surfaceRaised, border: `1px solid ${colors.border}` }
       }
     },
     // No iPhone, campos com fonte menor que 16px fazem a tela dar zoom ao tocar.

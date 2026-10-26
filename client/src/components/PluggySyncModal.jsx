@@ -196,7 +196,7 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
                 </Box>
               </Box>
 
-              <Box sx={{ bgcolor: 'rgba(239, 68, 68, 0.04)', p: 1.5, borderRadius: 2, border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              <Box sx={{ bgcolor: 'rgba(239, 117, 100, 0.06)', p: 1.5, borderRadius: 2, border: '1px solid rgba(239, 117, 100, 0.25)' }}>
                 <FormControlLabel
                   control={
                     <Checkbox

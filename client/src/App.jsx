@@ -503,7 +503,7 @@ export default function App() {
           right: 16,
           bottom: { xs: `calc(76px + ${SAFE_BOTTOM})`, sm: 24 },
           zIndex: 30,
-          boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)'
+          boxShadow: '0 8px 24px rgba(52, 195, 162, 0.35)'
         }}
       >
         <AddIcon />
