@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Container,
@@ -22,7 +23,6 @@ import {
   Paper,
   Fab,
   Badge,
-  CircularProgress,
   Tooltip
 } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -42,17 +42,22 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import { SummaryCards } from './components/SummaryCards';
 import { TransactionList } from './components/TransactionList';
 import { TransactionModal } from './components/TransactionModal';
-import { InstallmentsTracker } from './components/InstallmentsTracker';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { CategoryPicker } from './components/CategoryPicker';
-import { PluggySyncModal } from './components/PluggySyncModal';
-import { AccountManagementModal } from './components/AccountManagementModal';
 import { PinLockScreen } from './components/PinLockScreen';
+import { InstallmentsSkeleton, ListSkeleton, OverviewSkeleton } from './components/Skeletons';
+import { Kbd } from './components/Kbd';
 import { useConfirm } from './components/ConfirmDialog';
-import { api, clearToken, setUnauthorizedHandler } from './api';
+import { api, clearToken, getToken, setUnauthorizedHandler } from './api';
 import { addMonths, currentMonth as getCurrentMonth, formatMonthTitle } from './months';
 import { formatBRL } from './format';
+import { clearPersistedData } from './queryClient';
+import { useBackClose } from './backStack';
+import { withViewTransition } from './viewTransition';
+import { useShortcuts } from './shortcuts';
+import { loadPluggyConnect } from './pluggyWidget';
 import {
+  monthQueryOptions,
   useAccounts,
   useCategories,
   useDeleteAccount,
@@ -63,35 +68,57 @@ import {
   useResetData,
   useSaveAccount,
   useSaveTransaction,
-  useSetSurplus,
-  useTogglePaid
+  useSetPaid,
+  useSetSurplus
 } from './queries';
 
-const UNDO_DELAY_MS = 5000;
-const SAFE_BOTTOM = 'env(safe-area-inset-bottom)';
+// Telas e modais usados com menos frequência ficam em arquivos separados, baixados em segundo plano
+// depois que a tela principal aparece (ver usePrefetchOnIdle).
+const loaders = {
+  installments: () => import('./components/InstallmentsTracker'),
+  pluggy: () => import('./components/PluggySyncModal'),
+  accounts: () => import('./components/AccountManagementModal')
+};
+const InstallmentsTracker = lazy(() => loaders.installments().then(m => ({ default: m.InstallmentsTracker })));
+const PluggySyncModal = lazy(() => loaders.pluggy().then(m => ({ default: m.PluggySyncModal })));
+const AccountManagementModal = lazy(() => loaders.accounts().then(m => ({ default: m.AccountManagementModal })));
 
-// Estado da autenticação: 'checking' | 'locked' | 'open' | 'offline'
-function useAuthGate() {
-  const [state, setState] = useState('checking');
-  const [pinRequired, setPinRequired] = useState(false);
+const UNDO_DELAY_MS = 6000;
+const SAFE_BOTTOM = 'env(safe-area-inset-bottom)';
+const TAB_ORDER = ['overview', 'transactions', 'installments'];
+const SEARCH_INPUT_ID = 'transaction-search';
+
+// Estado da autenticação: 'checking' | 'locked' | 'open' | 'offline'.
+// Com um token salvo, o app abre na hora com os dados guardados e confere a sessão em segundo plano.
+function useAuthGate(onLock) {
+  const [state, setState] = useState(() => (getToken() ? 'open' : 'checking'));
+  const [pinRequired, setPinRequired] = useState(true);
+  const onLockRef = useRef(onLock);
+  onLockRef.current = onLock;
+
+  const lock = () => {
+    onLockRef.current();
+    setState('locked');
+  };
 
   const check = async () => {
-    setState('checking');
     try {
       const status = await api.authStatus();
       setPinRequired(status.pinRequired);
-      setState(status.authenticated ? 'open' : 'locked');
+      if (status.authenticated) setState('open');
+      else lock();
     } catch {
-      setState('offline');
+      // Sem rede: com sessão salva, segue mostrando os dados guardados.
+      setState(current => (current === 'open' ? 'open' : 'offline'));
     }
   };
 
   useEffect(() => {
-    setUnauthorizedHandler(() => setState('locked'));
+    setUnauthorizedHandler(lock);
     check();
   }, []);
 
-  return { state, pinRequired, check, unlock: () => setState('open'), lock: () => setState('locked') };
+  return { state, pinRequired, check, unlock: () => setState('open'), lock };
 }
 
 // Exclusão com "Desfazer": o lançamento some da tela na hora e só é apagado no servidor
@@ -135,9 +162,30 @@ function useDeferredDelete(deleteNow, onCommitted) {
   return { pendingIds, schedule, undo };
 }
 
+// Depois que a tela aparece, aproveita o tempo ocioso para baixar o que provavelmente vem a seguir:
+// os meses vizinhos e as telas separadas. Respeita o modo "economia de dados".
+function usePrefetchOnIdle(month, ready) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!ready || navigator.connection?.saveData) return undefined;
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
+    const cancel = window.cancelIdleCallback || clearTimeout;
+    const handle = idle(() => {
+      queryClient.prefetchQuery(monthQueryOptions(addMonths(month, -1)));
+      queryClient.prefetchQuery(monthQueryOptions(addMonths(month, 1)));
+      Object.values(loaders).forEach(load => load().catch(() => {}));
+    });
+    return () => cancel(handle);
+  }, [month, ready, queryClient]);
+}
+
 export default function App() {
-  const auth = useAuthGate();
+  const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const auth = useAuthGate(() => {
+    clearToken();
+    clearPersistedData(); // os dados guardados no aparelho saem junto com a sessão
+  });
   const enabled = auth.state === 'open';
 
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth);
@@ -153,21 +201,21 @@ export default function App() {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [pickingCategoryFor, setPickingCategoryFor] = useState(null);
 
-  const [toast, setToast] = useState(null); // { message, severity, action }
-  const showToast = (message, severity = 'success', action = null) =>
-    setToast({ message, severity, action, undoId: action?.undoId, key: Date.now() });
+  const [toast, setToast] = useState(null); // { message, severity, action, persist }
+  const showToast = (message, severity = 'success', action = null, options = {}) =>
+    setToast({ message, severity, action, undoId: action?.undoId, persist: options.persist, key: Date.now() });
   const showError = (err) => showToast(err?.message || 'Algo deu errado.', 'error');
 
-  // Dados: o servidor é a fonte única de verdade.
+  // Dados: o servidor é a fonte única de verdade; o cache guardado aparece enquanto atualiza.
   const monthsQuery = useMonths(enabled);
   const monthQuery = useMonthData(currentMonth, enabled);
   const installmentsQuery = useInstallments(currentMonth, enabled);
   const accountsQuery = useAccounts(enabled);
   const categoriesQuery = useCategories(enabled);
 
-  const saveTransaction = useSaveTransaction();
+  const saveTransaction = useSaveTransaction(currentMonth);
   const deleteTransaction = useDeleteTransaction();
-  const togglePaid = useTogglePaid(currentMonth);
+  const setPaid = useSetPaid(currentMonth);
   const setSurplus = useSetSurplus(currentMonth);
   const saveAccount = useSaveAccount();
   const deleteAccount = useDeleteAccount();
@@ -179,6 +227,15 @@ export default function App() {
     (id) => setToast(t => (t?.undoId === id ? null : t))
   );
 
+  usePrefetchOnIdle(currentMonth, enabled && monthQuery.isSuccess);
+
+  // Novo deploy baixado pelo service worker.
+  useEffect(() => {
+    const onUpdate = () => showToast('Nova versão do app disponível.', 'info', { label: 'Atualizar', onClick: () => window.location.reload() }, { persist: true });
+    window.addEventListener('app-update-available', onUpdate);
+    return () => window.removeEventListener('app-update-available', onUpdate);
+  }, []);
+
   const installments = installmentsQuery.data || [];
   const accounts = accountsQuery.data || [];
   const categories = categoriesQuery.data || [];
@@ -186,11 +243,21 @@ export default function App() {
   const transactions = (monthQuery.data?.transactions || []).filter(t => !deferredDelete.pendingIds.has(t.id));
   const availableMonths = Array.from(new Set([...(monthsQuery.data || []), currentMonth])).sort();
   const loadError = monthQuery.error || accountsQuery.error;
+  const offline = loadError?.status === 0;
 
+  // Navegação com transição: a nova aba/mês desliza no sentido do movimento.
   const goToTab = (tab) => {
-    setActiveTab(tab);
-    window.scrollTo({ top: 0 });
+    if (tab === activeTab) return;
+    const direction = TAB_ORDER.indexOf(tab) > TAB_ORDER.indexOf(activeTab) ? 'forward' : 'back';
+    withViewTransition(() => {
+      setActiveTab(tab);
+      window.scrollTo({ top: 0 });
+    }, direction);
   };
+
+  const changeMonth = (delta) => withViewTransition(() => setCurrentMonth(m => addMonths(m, delta)), delta > 0 ? 'forward' : 'back');
+  const selectMonth = (month) => withViewTransition(() => setCurrentMonth(month), month > currentMonth ? 'forward' : 'back');
+  const prefetchMonth = (delta) => queryClient.prefetchQuery(monthQueryOptions(addMonths(currentMonth, delta)));
 
   const openNewTransaction = () => {
     setEditingTransaction(null);
@@ -202,10 +269,31 @@ export default function App() {
     setEditingTransaction(null);
   };
 
-  const handleLockApp = () => {
-    clearToken();
-    auth.lock();
+  // Botão voltar do Android: fecha a camada de cima; fora da Visão geral, volta para ela.
+  useBackClose(activeTab !== 'overview', () => goToTab('overview'));
+  useBackClose(isModalOpen, closeTransactionModal);
+  useBackClose(Boolean(pickingCategoryFor), () => setPickingCategoryFor(null));
+  useBackClose(isPluggyModalOpen, () => setIsPluggyModalOpen(false));
+  useBackClose(isAccountsModalOpen, () => setIsAccountsModalOpen(false));
+  useBackClose(Boolean(menuAnchor), () => setMenuAnchor(null));
+
+  const focusSearch = () => {
+    goToTab('transactions');
+    setTimeout(() => document.getElementById(SEARCH_INPUT_ID)?.focus(), 350);
   };
+
+  useShortcuts({
+    n: openNewTransaction,
+    s: () => setIsPluggyModalOpen(true),
+    '/': focusSearch,
+    ArrowLeft: () => changeMonth(-1),
+    ArrowRight: () => changeMonth(1),
+    1: () => goToTab('overview'),
+    2: () => goToTab('transactions'),
+    3: () => goToTab('installments')
+  }, enabled);
+
+  const handleLockApp = () => auth.lock();
 
   const recategorizedMessage = (result, category) => {
     const n = result?.recategorized;
@@ -215,15 +303,14 @@ export default function App() {
       : `${category}: salvo, e mais ${n} lançamentos da mesma loja foram atualizados.`;
   };
 
+  // Otimista: o modal fecha e a lista já mostra a mudança; se o servidor recusar, a tela volta e avisa.
   const handleSaveTransaction = (formData) => {
     const id = editingTransaction?.id;
     const categoryChanged = id && formData.category !== editingTransaction.category;
+    closeTransactionModal();
     saveTransaction.mutate({ id, data: formData }, {
-      onSuccess: (result) => {
-        showToast((categoryChanged && recategorizedMessage(result, formData.category)) || (id ? 'Lançamento atualizado.' : 'Lançamento adicionado.'));
-        closeTransactionModal();
-      },
-      onError: showError
+      onSuccess: (result) => showToast((categoryChanged && recategorizedMessage(result, formData.category)) || (id ? 'Lançamento atualizado.' : 'Lançamento adicionado.')),
+      onError: (err) => showError({ message: `Não foi salvo: ${err.message}` })
     });
   };
 
@@ -236,7 +323,7 @@ export default function App() {
     });
   };
 
-  const handleTogglePaid = (id) => togglePaid.mutate(id, { onError: showError });
+  const handleTogglePaid = (tx) => setPaid.mutate({ id: tx.id, paid: !tx.paid }, { onError: showError });
 
   const handleDeleteTransaction = (tx) => {
     closeTransactionModal();
@@ -306,18 +393,20 @@ export default function App() {
     });
   };
 
-  if (auth.state === 'checking' || auth.state === 'offline') {
+  if (auth.state === 'checking') {
+    return (
+      <Container maxWidth="lg" sx={{ py: 1.5, px: 1.5 }}>
+        <OverviewSkeleton />
+      </Container>
+    );
+  }
+
+  if (auth.state === 'offline') {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, p: 3, textAlign: 'center' }}>
-        {auth.state === 'checking' ? (
-          <CircularProgress />
-        ) : (
-          <>
-            <Typography variant="h6">Sem conexão com o servidor</Typography>
-            <Typography variant="body2" color="text.secondary">Verifique sua internet e tente novamente.</Typography>
-            <Button variant="contained" onClick={auth.check} sx={{ minHeight: 48 }}>Tentar novamente</Button>
-          </>
-        )}
+        <Typography variant="h6">Sem conexão com o servidor</Typography>
+        <Typography variant="body2" color="text.secondary">Verifique sua internet e tente novamente.</Typography>
+        <Button variant="contained" onClick={auth.check} sx={{ minHeight: 48 }}>Tentar novamente</Button>
       </Box>
     );
   }
@@ -333,12 +422,26 @@ export default function App() {
     </MenuItem>
   );
 
+  // Sem dados deste mês: esqueleto enquanto carrega; se falhou (ex.: sem conexão e sem cache), avisa.
+  const monthUnavailable = !monthQuery.data && monthQuery.isError;
+  const showSkeleton = !monthQuery.data && !monthUnavailable;
+  const unavailableNotice = monthUnavailable && (
+    <Box sx={{ p: 4, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: '16px' }}>
+      <Typography variant="subtitle1" fontWeight={700}>{formatMonthTitle(currentMonth)} não está salvo no aparelho</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+        {offline ? 'Conecte-se à internet para ver este mês.' : monthQuery.error?.message}
+      </Typography>
+      <Button variant="outlined" onClick={() => monthQuery.refetch()} sx={{ minHeight: 44 }}>Tentar novamente</Button>
+    </Box>
+  );
+
   return (
     <>
       <Snackbar
         key={toast?.key}
         open={Boolean(toast)}
-        autoHideDuration={toast?.action ? UNDO_DELAY_MS : 3500}
+        autoHideDuration={toast?.persist ? null : toast?.action ? UNDO_DELAY_MS : 3500}
+        // Um toque qualquer na tela não fecha o aviso (senão o "Desfazer" some antes da hora).
         onClose={(e, reason) => reason !== 'clickaway' && setToast(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         // No celular fica acima da barra inferior e à esquerda do botão +.
@@ -350,7 +453,7 @@ export default function App() {
             variant="filled"
             onClose={toast.action ? undefined : () => setToast(null)}
             action={toast.action && (
-              <Button color="inherit" size="small" sx={{ fontWeight: 700 }} onClick={() => { toast.action.onClick(); setToast(null); }}>
+              <Button color="inherit" size="small" sx={{ fontWeight: 700, minHeight: 40 }} onClick={() => { toast.action.onClick(); setToast(null); }}>
                 {toast.action.label}
               </Button>
             )}
@@ -362,16 +465,16 @@ export default function App() {
       </Snackbar>
 
       {loadError && (
-        <Alert severity="error" sx={{ borderRadius: 0 }}>
-          Erro ao carregar dados: {loadError.message}
+        <Alert severity={offline ? 'warning' : 'error'} sx={{ borderRadius: 0 }}>
+          {offline ? 'Sem conexão. Mostrando os dados salvos no aparelho.' : `Erro ao carregar dados: ${loadError.message}`}
         </Alert>
       )}
 
-      {/* Cabeçalho */}
-      <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', pt: 'env(safe-area-inset-top)' }}>
+      {/* Cabeçalho (fica parado durante as transições: ver .app-header no index.css) */}
+      <AppBar className="app-header" position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', pt: 'env(safe-area-inset-top)' }}>
         <Toolbar sx={{ gap: 1, px: { xs: 1, sm: 3 }, minHeight: { xs: 60 } }}>
           <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1.5, mr: 1 }}>
-            <Box sx={{ p: 1, borderRadius: '10px', bgcolor: 'primary.main', display: 'flex' }}>
+            <Box sx={{ p: 1, borderRadius: '10px', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex' }}>
               <AccountBalanceWalletIcon fontSize="small" />
             </Box>
             <Typography variant="subtitle1" fontWeight={700} noWrap sx={{ display: { sm: 'none', md: 'block' } }}>
@@ -382,37 +485,65 @@ export default function App() {
           {/* Seletor de mês: ocupa o espaço que sobrar, nunca alarga a tela */}
           <Box sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: { xs: 'flex-start', md: 'center' } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: 340, width: '100%', borderRadius: '12px', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(255, 255, 255, 0.03)' }}>
-              <IconButton onClick={() => setCurrentMonth(m => addMonths(m, -1))} aria-label="Mês anterior" sx={{ width: 44, height: 44 }}>
-                <ChevronLeftIcon />
-              </IconButton>
+              <Tooltip title={<>Mês anterior <Kbd>←</Kbd></>}>
+                <IconButton
+                  onClick={() => changeMonth(-1)}
+                  onPointerEnter={() => prefetchMonth(-1)}
+                  onFocus={() => prefetchMonth(-1)}
+                  aria-label="Mês anterior"
+                  sx={{ width: 44, height: 44 }}
+                >
+                  <ChevronLeftIcon />
+                </IconButton>
+              </Tooltip>
               <Select
                 value={currentMonth}
-                onChange={(e) => setCurrentMonth(e.target.value)}
+                onChange={(e) => selectMonth(e.target.value)}
                 variant="standard"
                 disableUnderline
                 IconComponent={() => null}
                 sx={{ flex: 1, minWidth: 0, fontWeight: 700, '& .MuiSelect-select': { textAlign: 'center', p: '0 !important' } }}
                 renderValue={(m) => <Box component="span" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatMonthTitle(m)}</Box>}
-                MenuProps={{ PaperProps: { sx: { maxHeight: 360 } } }}
+                MenuProps={{ slotProps: { paper: { sx: { maxHeight: 360 } } } }}
               >
                 {availableMonths.map(m => <MenuItem key={m} value={m} sx={{ minHeight: 44 }}>{formatMonthTitle(m)}</MenuItem>)}
               </Select>
-              <IconButton onClick={() => setCurrentMonth(m => addMonths(m, 1))} aria-label="Próximo mês" sx={{ width: 44, height: 44 }}>
-                <ChevronRightIcon />
-              </IconButton>
+              <Tooltip title={<>Próximo mês <Kbd>→</Kbd></>}>
+                <IconButton
+                  onClick={() => changeMonth(1)}
+                  onPointerEnter={() => prefetchMonth(1)}
+                  onFocus={() => prefetchMonth(1)}
+                  aria-label="Próximo mês"
+                  sx={{ width: 44, height: 44 }}
+                >
+                  <ChevronRightIcon />
+                </IconButton>
+              </Tooltip>
             </Box>
           </Box>
 
           <Tooltip title="Sincronizar bancos">
-            <IconButton onClick={() => setIsPluggyModalOpen(true)} aria-label="Sincronizar bancos" sx={{ width: 44, height: 44, display: { md: 'none' } }}>
+            <IconButton
+              onClick={() => setIsPluggyModalOpen(true)}
+              onPointerEnter={() => loaders.pluggy()}
+              aria-label="Sincronizar bancos"
+              sx={{ width: 44, height: 44, display: { md: 'none' } }}
+            >
               <SyncIcon />
             </IconButton>
           </Tooltip>
-          <Button variant="outlined" color="secondary" startIcon={<SyncIcon />} onClick={() => setIsPluggyModalOpen(true)} sx={{ display: { xs: 'none', md: 'flex' } }}>
-            Sincronizar
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={<SyncIcon />}
+            onClick={() => setIsPluggyModalOpen(true)}
+            onPointerEnter={() => { loaders.pluggy(); loadPluggyConnect().catch(() => {}); }}
+            sx={{ display: { xs: 'none', md: 'flex' } }}
+          >
+            Sincronizar <Kbd>S</Kbd>
           </Button>
           <Button variant="contained" startIcon={<AddIcon />} onClick={openNewTransaction} sx={{ display: { xs: 'none', md: 'flex' } }}>
-            Novo lançamento
+            Novo lançamento <Kbd>N</Kbd>
           </Button>
           <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} aria-label="Mais opções" sx={{ width: 44, height: 44 }}>
             <MoreVertIcon />
@@ -438,12 +569,19 @@ export default function App() {
       >
         {/* Abas no computador/tablet */}
         <Tabs value={activeTab} onChange={(e, tab) => goToTab(tab)} sx={{ display: { xs: 'none', sm: 'flex' }, mb: 3 }}>
-          <Tab value="overview" icon={<DashboardIcon fontSize="small" />} iconPosition="start" label="Visão geral" sx={{ minHeight: 48 }} />
-          <Tab value="transactions" icon={<ReceiptLongIcon fontSize="small" />} iconPosition="start" label={`Lançamentos (${transactions.length})`} sx={{ minHeight: 48 }} />
-          <Tab value="installments" icon={<LayersIcon fontSize="small" />} iconPosition="start" label={`Parcelas (${installments.length})`} sx={{ minHeight: 48 }} />
+          <Tab value="overview" icon={<DashboardIcon fontSize="small" />} iconPosition="start" label={<span>Visão geral <Kbd>1</Kbd></span>} sx={{ minHeight: 48 }} />
+          <Tab value="transactions" icon={<ReceiptLongIcon fontSize="small" />} iconPosition="start" label={<span>Lançamentos ({transactions.length}) <Kbd>2</Kbd></span>} sx={{ minHeight: 48 }} />
+          <Tab
+            value="installments"
+            icon={<LayersIcon fontSize="small" />}
+            iconPosition="start"
+            label={<span>Parcelas ({installments.length}) <Kbd>3</Kbd></span>}
+            onPointerEnter={() => loaders.installments()}
+            sx={{ minHeight: 48 }}
+          />
         </Tabs>
 
-        {activeTab === 'overview' && (
+        {activeTab === 'overview' && (unavailableNotice || (showSkeleton ? <OverviewSkeleton /> : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <SummaryCards
               summary={summary}
@@ -467,12 +605,13 @@ export default function App() {
               }}
             />
           </Box>
-        )}
+        )))}
 
-        {activeTab === 'transactions' && (
+        {activeTab === 'transactions' && (unavailableNotice || (showSkeleton ? <ListSkeleton /> : (
           <TransactionList
             transactions={transactions}
             categories={categories}
+            searchInputId={SEARCH_INPUT_ID}
             accountFilter={accountFilter}
             onAccountFilterChange={setAccountFilter}
             categoryFilter={categoryFilter}
@@ -485,15 +624,20 @@ export default function App() {
             onDelete={handleDeleteTransaction}
             onPickCategory={setPickingCategoryFor}
           />
-        )}
+        )))}
 
         {activeTab === 'installments' && (
-          <InstallmentsTracker installments={installments} currentMonth={currentMonth} accounts={accounts} />
+          <Suspense fallback={<InstallmentsSkeleton />}>
+            {installmentsQuery.data ? (
+              <InstallmentsTracker installments={installments} currentMonth={currentMonth} accounts={accounts} />
+            ) : <InstallmentsSkeleton />}
+          </Suspense>
         )}
       </Container>
 
       {/* Botão de novo lançamento no celular */}
       <Fab
+        className="app-fab"
         color="primary"
         aria-label="Novo lançamento"
         onClick={openNewTransaction}
@@ -511,6 +655,7 @@ export default function App() {
 
       {/* Navegação inferior no celular */}
       <Paper
+        className="app-bottom-nav"
         elevation={6}
         sx={{
           display: { xs: 'block', sm: 'none' },
@@ -545,7 +690,6 @@ export default function App() {
         accounts={accounts}
         currentMonth={currentMonth}
         editTransaction={editingTransaction}
-        saving={saveTransaction.isPending}
       />
 
       <CategoryPicker
@@ -555,19 +699,24 @@ export default function App() {
         onClose={() => setPickingCategoryFor(null)}
       />
 
-      <PluggySyncModal
-        isOpen={isPluggyModalOpen}
-        onClose={() => setIsPluggyModalOpen(false)}
-        onSyncSuccess={(result) => showToast(result?.message || 'Bancos sincronizados!')}
-      />
-
-      <AccountManagementModal
-        isOpen={isAccountsModalOpen}
-        onClose={() => setIsAccountsModalOpen(false)}
-        accounts={accounts}
-        onSaveAccount={handleSaveAccount}
-        onDeleteAccount={handleDeleteAccount}
-      />
+      <Suspense fallback={null}>
+        {isPluggyModalOpen && (
+          <PluggySyncModal
+            isOpen={isPluggyModalOpen}
+            onClose={() => setIsPluggyModalOpen(false)}
+            onSyncSuccess={(result) => showToast(result?.message || 'Bancos sincronizados!')}
+          />
+        )}
+        {isAccountsModalOpen && (
+          <AccountManagementModal
+            isOpen={isAccountsModalOpen}
+            onClose={() => setIsAccountsModalOpen(false)}
+            accounts={accounts}
+            onSaveAccount={handleSaveAccount}
+            onDeleteAccount={handleDeleteAccount}
+          />
+        )}
+      </Suspense>
     </>
   );
 }

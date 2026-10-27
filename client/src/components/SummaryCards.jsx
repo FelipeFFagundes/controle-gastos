@@ -17,6 +17,7 @@ import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import { formatAmountInput, formatBRL, parseAmount } from '../format';
+import { useBackClose } from '../backStack';
 
 function Stat({ label, value, color = 'text.primary', hint }) {
   return (
@@ -43,6 +44,7 @@ export function SummaryCards({
 }) {
   const [isEditingSurplus, setIsEditingSurplus] = useState(false);
   const [surplusInput, setSurplusInput] = useState('');
+  useBackClose(isEditingSurplus, () => setIsEditingSurplus(false));
 
   if (!summary) return null;
 
@@ -221,8 +223,10 @@ export function SummaryCards({
             fullWidth
             value={surplusInput}
             onChange={(e) => setSurplusInput(e.target.value)}
-            inputProps={{ inputMode: 'decimal' }}
-            InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+            slotProps={{
+              htmlInput: { inputMode: 'decimal' },
+              input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> }
+            }}
             helperText={`Calculada pelo app: ${formatBRL(netBalance)}`}
             error={surplusInput !== '' && !Number.isFinite(parsedSurplus)}
           />

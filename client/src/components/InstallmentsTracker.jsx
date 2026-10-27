@@ -197,7 +197,7 @@ export function InstallmentsTracker({
                 bgcolor: 'rgba(255, 255, 255, 0.03)'
               }
             }}
-            InputProps={{
+            slotProps={{ input: {
               startAdornment: (
                 <InputAdornment position="start">
                   <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
@@ -210,7 +210,7 @@ export function InstallmentsTracker({
                   </IconButton>
                 </InputAdornment>
               )
-            }}
+            } }}
           />
 
           {/* Chips de Cartões / Contas Centralizados */}

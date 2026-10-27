@@ -1,25 +1,33 @@
 import React from 'react';
-import { Box, ButtonBase, Drawer, Typography } from '@mui/material';
+import { Box, ButtonBase, SwipeableDrawer, Typography } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import { CategoryAvatar } from './CategoryAvatar';
 
 // Folha que sobe de baixo para trocar a categoria de um lançamento com um toque.
+// Fecha arrastando para baixo (SwipeableDrawer), tocando fora ou com o botão voltar.
+// No iOS o gesto de voltar do navegador conflita com o arrasto a partir da borda: por isso disableDiscovery.
+const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 export function CategoryPicker({ transaction, categories = [], onSelect, onClose }) {
   const options = categories.filter(c => c.name !== 'Salário & Entradas');
 
   return (
-    <Drawer
+    <SwipeableDrawer
       anchor="bottom"
       open={Boolean(transaction)}
       onClose={onClose}
-      PaperProps={{
+      onOpen={() => {}}
+      disableSwipeToOpen
+      disableDiscovery={isIOS}
+      disableBackdropTransition={!isIOS}
+      ModalProps={{ keepMounted: false }}
+      slotProps={{ paper: {
         sx: {
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           maxHeight: '80vh',
           pb: 'calc(8px + env(safe-area-inset-bottom))'
         }
-      }}
+      } }}
     >
       {transaction && (
         <Box sx={{ pt: 1 }}>
@@ -54,6 +62,6 @@ export function CategoryPicker({ transaction, categories = [], onSelect, onClose
           })}
         </Box>
       )}
-    </Drawer>
+    </SwipeableDrawer>
   );
 }

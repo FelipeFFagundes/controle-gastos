@@ -73,6 +73,17 @@ const MIGRATIONS = [
       sql: 'UPDATE accounts SET color = ? WHERE lower(color) = ?',
       args: [to, from]
     }))
+  ],
+  [
+    // Ações já processadas, pela chave enviada pelo aparelho (Idempotency-Key).
+    // Um reenvio após falha de rede devolve a mesma resposta em vez de repetir a ação.
+    `CREATE TABLE idempotency_keys (
+      key TEXT PRIMARY KEY,
+      scope TEXT NOT NULL,
+      status INTEGER,
+      body TEXT,
+      created_at TEXT NOT NULL
+    )`
   ]
 ];
 

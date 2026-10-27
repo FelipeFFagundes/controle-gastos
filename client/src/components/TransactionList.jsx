@@ -23,6 +23,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import { CategoryAvatar } from './CategoryAvatar';
+import { Kbd } from './Kbd';
 import { formatBRL, formatDayHeader, formatMonthShort, parseAmount } from '../format';
 
 // Transferências (pagamento de fatura, aplicação automática) não são gasto nem receita.
@@ -49,23 +50,38 @@ const secondaryLine = (tx) => {
 };
 
 // Linha que pode ser arrastada no celular: para a direita marca como pago, para a esquerda exclui.
+// Posição atual da linha, inclusive no meio da animação de volta.
+function currentTranslateX(el) {
+  const transform = el ? getComputedStyle(el).transform : 'none';
+  return transform && transform !== 'none' ? new DOMMatrixReadOnly(transform).m41 : 0;
+}
+
 function SwipeRow({ children, paid, onSwipeRight, onSwipeLeft }) {
   const [dx, setDx] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const start = useRef(null);
   const dragging = useRef(false);
   const justSwiped = useRef(false);
+  const content = useRef(null);
 
   const reset = () => {
     start.current = null;
     dragging.current = false;
+    setIsDragging(false);
     setDx(0);
   };
 
   const handlers = {
     onPointerDown: (e) => {
       if (e.pointerType !== 'touch') return;
-      start.current = { x: e.clientX, y: e.clientY };
-      dragging.current = false;
+      // Interrompível: se a linha ainda está voltando ao lugar, o dedo a pega de onde ela está.
+      const offset = currentTranslateX(content.current);
+      start.current = { x: e.clientX - offset, y: e.clientY };
+      dragging.current = Math.abs(offset) > 1;
+      if (dragging.current) {
+        setIsDragging(true);
+        setDx(offset);
+      }
     },
     onPointerMove: (e) => {
       if (!start.current) return;
@@ -74,6 +90,7 @@ function SwipeRow({ children, paid, onSwipeRight, onSwipeLeft }) {
       if (!dragging.current) {
         if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
           dragging.current = true;
+          setIsDragging(true);
           e.currentTarget.setPointerCapture?.(e.pointerId);
         } else if (Math.abs(deltaY) > 12) {
           start.current = null;
@@ -123,10 +140,11 @@ function SwipeRow({ children, paid, onSwipeRight, onSwipeLeft }) {
         </Box>
       )}
       <Box
+        ref={content}
         sx={{
           position: 'relative',
           transform: `translateX(${dx}px)`,
-          transition: dx === 0 ? 'transform 0.2s ease' : 'none',
+          transition: isDragging ? 'none' : 'transform 0.2s ease',
           bgcolor: 'background.paper'
         }}
       >
@@ -139,8 +157,24 @@ function SwipeRow({ children, paid, onSwipeRight, onSwipeLeft }) {
 function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, onDelete }) {
   const billedInOtherMonth = tx.date && tx.date.slice(0, 7) !== tx.month;
 
+  // Lançamento novo ainda não confirmado pelo servidor (atualização otimista): visível, mas sem ações.
+  if (tx.pending) {
+    return (
+      <Box aria-busy="true" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: { xs: 1.5, sm: 2 }, py: 1.25, minHeight: 68, opacity: 0.55 }}>
+        <CategoryAvatar category={tx.category} categories={categories} type={tx.type} size={40} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 600, fontSize: '0.95rem' }} noWrap>{tx.description}</Typography>
+          <Typography variant="caption" color="text.secondary">Salvando…</Typography>
+        </Box>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: amountColor(tx.type), whiteSpace: 'nowrap' }}>
+          {amountPrefix(tx.type)}{formatBRL(tx.amount)}
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
-    <SwipeRow paid={tx.paid} onSwipeRight={() => onTogglePaid(tx.id)} onSwipeLeft={() => onDelete(tx)}>
+    <SwipeRow paid={tx.paid} onSwipeRight={() => onTogglePaid(tx)} onSwipeLeft={() => onDelete(tx)}>
       <Box
         role="button"
         tabIndex={0}
@@ -209,7 +243,7 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
         {/* No computador não há arrasto: ações visíveis. */}
         <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 0.5 }}>
           <Tooltip title={tx.paid ? 'Marcar como pendente' : 'Marcar como pago'}>
-            <IconButton onClick={(e) => { e.stopPropagation(); onTogglePaid(tx.id); }}>
+            <IconButton onClick={(e) => { e.stopPropagation(); onTogglePaid(tx); }}>
               {tx.paid ? <CheckCircleIcon color="secondary" /> : <RadioButtonUncheckedIcon />}
             </IconButton>
           </Tooltip>
@@ -227,6 +261,7 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
 export function TransactionList({
   transactions = [],
   categories = [],
+  searchInputId,
   accountFilter = '',
   onAccountFilterChange,
   categoryFilter = '',
@@ -315,19 +350,25 @@ export function TransactionList({
             placeholder="Buscar lançamento"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
+            onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.querySelector('input')?.blur(); }}
+            slotProps={{
+              htmlInput: { id: searchInputId, 'aria-label': 'Buscar lançamento', enterKeyHint: 'search' },
+              input: {
               startAdornment: (
                 <InputAdornment position="start">
                   <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                 </InputAdornment>
               ),
-              endAdornment: searchTerm && (
+              endAdornment: searchTerm ? (
                 <InputAdornment position="end">
                   <IconButton size="small" onClick={() => setSearchTerm('')} aria-label="Limpar busca">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
+              ) : (
+                <InputAdornment position="end"><Kbd sx={{ color: 'text.secondary' }}>/</Kbd></InputAdornment>
               )
+              }
             }}
             sx={{ '& .MuiInputBase-root': { minHeight: 44 } }}
           />
@@ -366,10 +407,10 @@ export function TransactionList({
 
         <Collapse in={showAdvanced}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 0.5 }}>
-            <TextField label="De" type="date" size="small" value={startDate} onChange={(e) => setStartDate(e.target.value)} InputLabelProps={{ shrink: true }} />
-            <TextField label="Até" type="date" size="small" value={endDate} onChange={(e) => setEndDate(e.target.value)} InputLabelProps={{ shrink: true }} />
-            <TextField label="Valor mínimo" size="small" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} inputProps={{ inputMode: 'decimal' }} InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }} />
-            <TextField label="Valor máximo" size="small" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} inputProps={{ inputMode: 'decimal' }} InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }} />
+            <TextField label="De" type="date" size="small" value={startDate} onChange={(e) => setStartDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField label="Até" type="date" size="small" value={endDate} onChange={(e) => setEndDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            <TextField label="Valor mínimo" size="small" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} slotProps={{ htmlInput: { inputMode: 'decimal' }, input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }} />
+            <TextField label="Valor máximo" size="small" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} slotProps={{ htmlInput: { inputMode: 'decimal' }, input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> } }} />
             <FormControl size="small">
               <InputLabel>Ordenar por</InputLabel>
               <Select value={sortBy} label="Ordenar por" onChange={(e) => setSortBy(e.target.value)}>

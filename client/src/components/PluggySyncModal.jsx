@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { keys, usePluggyStatus, usePluggySync } from '../queries';
 import { useConfirm } from './ConfirmDialog';
+import { loadPluggyConnect } from '../pluggyWidget';
 
 const PERIODS = [
   { value: '24h', label: 'Últimas 24h', desc: 'Apenas hoje' },
@@ -53,11 +54,8 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
     setWidgetLoading(true);
     setError(null);
     try {
-      const { connectToken } = await api.pluggyConnectToken();
-      if (typeof window.PluggyConnect === 'undefined') {
-        throw new Error('O widget da Pluggy ainda está carregando. Aguarde alguns segundos e tente novamente.');
-      }
-      new window.PluggyConnect({
+      const [{ connectToken }, PluggyConnect] = await Promise.all([api.pluggyConnectToken(), loadPluggyConnect()]);
+      new PluggyConnect({
         connectToken,
         includeSandbox: true,
         onSuccess: async (itemData) => {

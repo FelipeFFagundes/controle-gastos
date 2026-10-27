@@ -153,8 +153,10 @@ export function TransactionModal({
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0,00"
             autoFocus={!editTransaction}
-            inputProps={{ inputMode: 'decimal', style: { fontSize: 22, fontWeight: 700 } }}
-            InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+            slotProps={{
+              htmlInput: { inputMode: 'decimal', style: { fontSize: 22, fontWeight: 700 } },
+              input: { startAdornment: <InputAdornment position="start">R$</InputAdornment> }
+            }}
             error={Boolean(errors.amount)}
             helperText={errors.amount}
           />
@@ -165,7 +167,7 @@ export function TransactionModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={type === 'income' ? 'Ex.: Salário, Freelance' : 'Ex.: Supermercado, Farmácia'}
-            inputProps={{ autoCapitalize: 'sentences' }}
+            slotProps={{ htmlInput: { autoCapitalize: 'sentences' } }}
             error={Boolean(errors.description)}
             helperText={errors.description}
           />
@@ -195,7 +197,7 @@ export function TransactionModal({
               fullWidth
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
             />
 
             <FormControl fullWidth>
@@ -224,8 +226,8 @@ export function TransactionModal({
               {isInstallment && (
                 <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-                    <TextField label="Parcela atual" value={currentInstallment} onChange={(e) => setCurrentInstallment(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
-                    <TextField label="Total de parcelas" value={totalInstallments} onChange={(e) => setTotalInstallments(e.target.value)} inputProps={{ inputMode: 'numeric' }} />
+                    <TextField label="Parcela atual" value={currentInstallment} onChange={(e) => setCurrentInstallment(e.target.value)} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                    <TextField label="Total de parcelas" value={totalInstallments} onChange={(e) => setTotalInstallments(e.target.value)} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
                   </Box>
                   {!editTransaction && (
                     <FormControlLabel

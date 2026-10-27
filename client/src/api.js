@@ -45,32 +45,62 @@ export function setUnauthorizedHandler(handler) {
   onUnauthorized = handler;
 }
 
+// Escritas que falham por rede são reenviadas sozinhas. POST/PATCH levam uma Idempotency-Key gerada
+// aqui e repetida nas novas tentativas: o servidor reconhece a repetição e não executa a ação de novo.
+const RETRY_DELAYS_MS = [600, 2000];
+const KEYED_METHODS = new Set(['POST', 'PATCH']);
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function newIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export async function request(path, { method = 'GET', body } = {}) {
   const headers = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (KEYED_METHODS.has(method)) headers['Idempotency-Key'] = newIdempotencyKey();
+  const canRetry = method !== 'GET'; // leituras: o React Query já tenta de novo
 
   let response;
-  try {
-    response = await fetch(`/api${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body)
-    });
-  } catch {
-    throw new ApiError(0, 'Sem conexão com o servidor.');
-  }
-
-  const text = await response.text();
   let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
+  let attempt = 0;
+  for (;;) {
+    try {
+      response = await fetch(`/api${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body)
+      });
+    } catch {
+      if (canRetry && attempt < RETRY_DELAYS_MS.length) {
+        await sleep(RETRY_DELAYS_MS[attempt++]);
+        continue;
+      }
+      throw new ApiError(0, 'Sem conexão com o servidor.');
+    }
+
+    const text = await response.text();
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    // A tentativa anterior ainda está sendo processada no servidor: espera e pergunta de novo.
+    if (response.status === 409 && data?.inProgress && attempt < RETRY_DELAYS_MS.length) {
+      await sleep(RETRY_DELAYS_MS[attempt++]);
+      continue;
+    }
+    break;
   }
 
   if (!response.ok) {
+    // Exclusão reenviada depois de falha de rede: a primeira tentativa já tinha apagado.
+    if (method === 'DELETE' && response.status === 404 && attempt > 0) return null;
     if (response.status === 401 && data?.needsAuth) {
       clearToken();
       onUnauthorized();
@@ -93,7 +123,7 @@ export const api = {
 
   createTransaction: (data) => request('/transactions', { method: 'POST', body: data }),
   updateTransaction: (id, data) => request(`/transactions/${id}`, { method: 'PUT', body: data }),
-  togglePaid: (id) => request(`/transactions/${id}/toggle-paid`, { method: 'PATCH' }),
+  setPaid: (id, paid) => request(`/transactions/${id}/paid`, { method: 'PATCH', body: { paid } }),
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 
   createAccount: (data) => request('/accounts', { method: 'POST', body: data }),

@@ -161,10 +161,11 @@ async function learnCategory(tx) {
   return sameMerchant.length;
 }
 
-export async function togglePaid(id) {
+export async function setPaid(id, paid) {
+  if (typeof paid !== 'boolean') throw badRequest('Informe paid como true ou false.');
   const existing = await transactionsRepo.getById(id);
   if (!existing) throw notFound('Lançamento não encontrado.');
-  await transactionsRepo.togglePaid(id);
+  await transactionsRepo.setPaid(id, paid);
   return transactionsRepo.getById(id);
 }
 

@@ -4,10 +4,50 @@ body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  /* Valores e datas com dígitos de largura fixa: os números não "tremem" ao mudar. */
+  font-variant-numeric: tabular-nums;
 }
 
 /* Rede de segurança: nenhum elemento deve alargar a página no celular. */
 html,
 body {
   overflow-x: clip;
+}
+
+/* Títulos com linhas equilibradas; parágrafos sem palavra sozinha na última linha. */
+h1, h2, h3, h4, h5, h6,
+.MuiTypography-h4, .MuiTypography-h5, .MuiTypography-h6, .MuiTypography-subtitle1, .MuiDialogTitle-root {
+  text-wrap: balance;
+}
+p, .MuiTypography-body1, .MuiTypography-body2, .MuiAlert-message {
+  text-wrap: pretty;
+}
+
+/* ---- Transições entre telas (viewTransition.js) ---- */
+/* Barras fixas com nome próprio: ficam paradas enquanto o conteúdo desliza. */
+.app-header { view-transition-name: app-header; }
+.app-bottom-nav { view-transition-name: app-bottom-nav; }
+.app-fab { view-transition-name: app-fab; }
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+:root[data-nav-direction='forward']::view-transition-old(root) { animation-name: vt-out-to-left; }
+:root[data-nav-direction='forward']::view-transition-new(root) { animation-name: vt-in-from-right; }
+:root[data-nav-direction='back']::view-transition-old(root) { animation-name: vt-out-to-right; }
+:root[data-nav-direction='back']::view-transition-new(root) { animation-name: vt-in-from-left; }
+
+@keyframes vt-out-to-left { to { opacity: 0; transform: translateX(-24px); } }
+@keyframes vt-in-from-right { from { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-out-to-right { to { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-in-from-left { from { opacity: 0; transform: translateX(-24px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

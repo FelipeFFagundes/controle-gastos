@@ -184,7 +184,7 @@ export function AccountManagementModal({
                   size="small"
                   fullWidth
                   placeholder="Ex.: 28, 29, 30"
-                  inputProps={{ min: 1, max: 31 }}
+                  slotProps={{ htmlInput: { min: 1, max: 31, inputMode: 'numeric' } }}
                   value={closingDay}
                   onChange={(e) => setClosingDay(e.target.value)}
                   helperText="Compras feitas a partir deste dia caem automaticamente na fatura do mês seguinte (ex.: compras no dia 30/09 entram na fatura de Outubro)."

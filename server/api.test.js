@@ -22,12 +22,13 @@ before(async () => {
 
 after(() => server.close());
 
-async function api(path, { method = 'GET', body, auth = true } = {}) {
+async function api(path, { method = 'GET', body, auth = true, key } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth && token) headers.Authorization = `Bearer ${token}`;
+  if (key) headers['Idempotency-Key'] = key;
   const res = await fetch(`${baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const text = await res.text();
-  return { status: res.status, body: text ? JSON.parse(text) : null };
+  return { status: res.status, body: text ? JSON.parse(text) : null, replayed: res.headers.get('Idempotent-Replayed') === 'true' };
 }
 
 test('rotas exigem PIN e o login bloqueia após 5 erros', async () => {
@@ -100,7 +101,9 @@ test('meta de sobra e marcar como pago', async () => {
   const { body: { created: [tx] } } = await api('/transactions', { method: 'POST', body: { description: 'Mercado', amount: 200, accountId: account.id, date: '2026-10-06' } });
 
   await api('/months/2026-10/surplus', { method: 'PUT', body: { target: 300 } });
-  await api(`/transactions/${tx.id}/toggle-paid`, { method: 'PATCH' });
+  // Repetir o pedido não desfaz: o estado é definido, não invertido.
+  await api(`/transactions/${tx.id}/paid`, { method: 'PATCH', body: { paid: true } });
+  await api(`/transactions/${tx.id}/paid`, { method: 'PATCH', body: { paid: true } });
   const { body } = await api('/months/2026-10');
   assert.equal(body.summary.availableToSpend, 500);
   assert.equal(body.summary.totalPaid, 200);
@@ -126,4 +129,26 @@ test('rota do cron exige o CRON_SECRET, não o PIN', async () => {
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).skipped, true); // Pluggy não configurada neste teste
   delete process.env.CRON_SECRET;
+});
+
+test('reenvio com a mesma Idempotency-Key não duplica o lançamento', async () => {
+  const { body: { account } } = await api('/accounts', { method: 'POST', body: { name: 'Idem', type: 'bank_account' } });
+  const payload = { description: 'Padaria idempotente', amount: 12.5, accountId: account.id, date: '2026-10-07' };
+  const key = 'teste-idem-0001';
+
+  const first = await api('/transactions', { method: 'POST', body: payload, key });
+  const retry = await api('/transactions', { method: 'POST', body: payload, key });
+  assert.equal(first.status, 201);
+  assert.equal(retry.status, 201);
+  assert.equal(retry.replayed, true);
+  assert.equal(retry.body.created[0].id, first.body.created[0].id);
+
+  const { body } = await api('/months/2026-10');
+  assert.equal(body.transactions.filter(t => t.description === 'Padaria idempotente').length, 1);
+
+  // A mesma chave em outra ação é recusada.
+  assert.equal((await api('/accounts', { method: 'POST', body: { name: 'Outra' }, key })).status, 422);
+  // Erro de validação também é guardado: o reenvio recebe o mesmo 400.
+  assert.equal((await api('/transactions', { method: 'POST', body: {}, key: 'teste-idem-0002' })).status, 400);
+  assert.equal((await api('/transactions', { method: 'POST', body: {}, key: 'teste-idem-0002' })).replayed, true);
 });

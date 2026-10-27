@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { useBackClose } from '../backStack';
 
 // Substitui o window.confirm nativo por um diálogo no visual do app.
 //   const confirm = useConfirm();
@@ -17,6 +18,8 @@ export function ConfirmProvider({ children }) {
     state?.resolve(answer);
     setState(null);
   };
+
+  useBackClose(Boolean(state), () => close(false));
 
   return (
     <ConfirmContext.Provider value={confirm}>

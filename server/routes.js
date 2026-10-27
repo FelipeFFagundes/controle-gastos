@@ -10,6 +10,7 @@ import { importLegacyData } from './services/legacyImport.js';
 import { initialData } from './seed.js';
 import { config } from './config.js';
 import { runAutoSync } from './jobs/autoSync.js';
+import { idempotency } from './idempotency.js';
 
 export function apiRouter() {
   const router = Router();
@@ -36,6 +37,7 @@ export function apiRouter() {
   });
 
   router.use(requireAuth);
+  router.use(idempotency());
 
   // --- Dados de referência ---
   router.get('/categories', async (req, res) => {
@@ -69,8 +71,9 @@ export function apiRouter() {
     res.json(await transactions.update(req.params.id, req.body || {}));
   });
 
-  router.patch('/transactions/:id/toggle-paid', async (req, res) => {
-    res.json({ transaction: await transactions.togglePaid(req.params.id) });
+  // Define o estado (em vez de inverter): repetir o pedido não desfaz o anterior.
+  router.patch('/transactions/:id/paid', async (req, res) => {
+    res.json({ transaction: await transactions.setPaid(req.params.id, req.body?.paid) });
   });
 
   router.delete('/transactions/:id', async (req, res) => {

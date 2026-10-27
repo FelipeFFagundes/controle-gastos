@@ -168,9 +168,9 @@ export async function setCategory(ids, category) {
   await db.batch(ids.map(id => ({ sql: 'UPDATE transactions SET category = ? WHERE id = ?', args: [category, id] })), 'write');
 }
 
-export async function togglePaid(id) {
+export async function setPaid(id, paid) {
   const db = await getDb();
-  await db.execute({ sql: 'UPDATE transactions SET paid = 1 - paid WHERE id = ?', args: [id] });
+  await db.execute({ sql: 'UPDATE transactions SET paid = ? WHERE id = ?', args: [paid ? 1 : 0, id] });
 }
 
 export async function remove(tx) {

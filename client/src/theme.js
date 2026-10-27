@@ -60,6 +60,19 @@ export const theme = createTheme({
         body: { backgroundColor: colors.bg }
       }
     },
+    // Área de toque de pelo menos 44px em qualquer botão, ícone, chip, checkbox ou switch, sem mudar o
+    // visual: um ::before invisível se estende além do elemento quando ele é menor que 44px.
+    MuiButtonBase: {
+      styleOverrides: {
+        root: {
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            inset: 'min(0px, calc((100% - 44px) / 2))'
+          }
+        }
+      }
+    },
     MuiButton: {
       styleOverrides: {
         root: {

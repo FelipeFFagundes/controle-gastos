@@ -11,7 +11,9 @@ test('migração da paleta troca só as cores padrão antigas', async () => {
     { sql: "UPDATE categories SET color = '#123456' WHERE id = 'cat-2'", args: [] },
     { sql: "INSERT INTO accounts (id, name, type, color) VALUES ('a1', 'Nubank', 'credit_card', '#820AD1')", args: [] },
     { sql: "INSERT INTO accounts (id, name, type, color) VALUES ('a2', 'Minha', 'bank_account', '#abcdef')", args: [] },
-    { sql: 'DELETE FROM schema_version WHERE version >= 3', args: [] }
+    { sql: 'DELETE FROM schema_version WHERE version >= 3', args: [] },
+    // As migrações depois da 3 são refeitas junto.
+    { sql: 'DROP TABLE idempotency_keys', args: [] }
   ]);
 
   await migrate(db);
