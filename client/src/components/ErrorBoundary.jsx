@@ -45,7 +45,7 @@ export class ErrorBoundary extends React.Component {
               textAlign: 'center',
               borderRadius: 3,
               bgcolor: '#131D1A',
-              border: '1px solid rgba(239, 117, 100, 0.3)'
+              border: '1px solid rgba(235, 90, 104, 0.3)'
             }}
           >
             <ErrorOutlineIcon sx={{ fontSize: 56, color: 'error.main', mb: 2 }} />

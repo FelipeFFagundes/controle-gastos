@@ -24,7 +24,7 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import { CategoryAvatar } from './CategoryAvatar';
 import { Kbd } from './Kbd';
-import { formatBRL, formatDayHeader, formatMonthShort, parseAmount } from '../format';
+import { formatBRL, formatDayHeader, formatMonthShort, formatSignedBRL, parseAmount } from '../format';
 
 // Transferências (pagamento de fatura, aplicação automática) não são gasto nem receita.
 const amountColor = (type) => (type === 'income' ? 'secondary.main' : type === 'transfer' ? 'text.secondary' : 'text.primary');
@@ -38,6 +38,14 @@ const TYPE_FILTERS = [
 ];
 
 const SWIPE_THRESHOLD = 80;
+
+// Filtro rápido: contorno neutro; o selecionado fica em branco com a linha jade na borda de baixo.
+const filterChipSx = (selected) => ({
+  height: 36,
+  flexShrink: 0,
+  color: selected ? 'text.primary' : 'text.secondary',
+  ...(selected && { borderBottomColor: 'accent.main' })
+});
 
 // A parcela já aparece no selo "2/12": tira o "02/12" do fim da descrição.
 const INSTALLMENT_SUFFIX = /\s*-?\s*(?:parcela\s*)?\d{1,2}\s*\/\s*\d{1,2}\s*$/i;
@@ -189,8 +197,8 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
           py: 1.25,
           minHeight: 68,
           cursor: 'pointer',
-          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.03)' },
-          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 }
+          '&:hover': { bgcolor: 'action.hover' },
+          '&:focus-visible': { outline: '2px solid', outlineColor: 'accent.main', outlineOffset: -2 }
         }}
       >
         <Tooltip title="Trocar categoria">
@@ -226,11 +234,11 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
               {secondaryLine(tx)}
             </Typography>
             {tx.installment && (
-              <Chip label={`${tx.installment.current}/${tx.installment.total}`} size="small" color="info" sx={{ height: 20, fontSize: '0.75rem' }} />
+              <Chip label={`${tx.installment.current}/${tx.installment.total}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem', color: 'text.secondary' }} />
             )}
             {billedInOtherMonth && (
               <Tooltip title="Compra feita em outro mês, cobrada na fatura deste mês">
-                <Chip label={`fatura ${formatMonthShort(tx.month)}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                <Chip label={`fatura ${formatMonthShort(tx.month)}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem', color: 'text.secondary' }} />
               </Tooltip>
             )}
           </Box>
@@ -376,7 +384,7 @@ export function TransactionList({
             onClick={() => setShowAdvanced(v => !v)}
             aria-label="Mais filtros"
             color={hasAdvanced ? 'secondary' : 'default'}
-            sx={{ width: 44, height: 44, border: '1px solid', borderColor: hasAdvanced ? 'secondary.main' : 'divider', borderRadius: '12px' }}
+            sx={{ width: 44, height: 44, border: '1px solid', borderColor: hasAdvanced ? 'accent.main' : 'divider', borderRadius: '4px' }}
           >
             <TuneIcon />
           </IconButton>
@@ -389,19 +397,19 @@ export function TransactionList({
               key={f.value}
               label={f.label}
               clickable
-              color={typeFilter === f.value ? 'primary' : 'default'}
-              variant={typeFilter === f.value ? 'filled' : 'outlined'}
+              variant="outlined"
+              aria-pressed={typeFilter === f.value}
               onClick={() => setTypeFilter(f.value)}
-              sx={{ height: 36, flexShrink: 0 }}
+              sx={filterChipSx(typeFilter === f.value)}
             />
           ))}
           <Chip
             label="Pendentes"
             clickable
-            color={pendingOnly ? 'warning' : 'default'}
-            variant={pendingOnly ? 'filled' : 'outlined'}
+            variant="outlined"
+            aria-pressed={pendingOnly}
             onClick={() => setPendingOnly(v => !v)}
-            sx={{ height: 36, flexShrink: 0 }}
+            sx={filterChipSx(pendingOnly)}
           />
         </Box>
 
@@ -432,15 +440,15 @@ export function TransactionList({
         {/* Filtros vindos da Visão Geral (conta, categoria) */}
         {(accountFilter || categoryFilter) && (
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {accountFilter && <Chip label={accountFilter} onDelete={() => onAccountFilterChange?.('')} color="primary" variant="outlined" sx={{ height: 32 }} />}
-            {categoryFilter && <Chip label={categoryFilter} onDelete={() => onCategoryFilterChange?.('')} color="primary" variant="outlined" sx={{ height: 32 }} />}
+            {accountFilter && <Chip label={accountFilter} onDelete={() => onAccountFilterChange?.('')} variant="outlined" sx={{ height: 32, borderBottomColor: 'accent.main' }} />}
+            {categoryFilter && <Chip label={categoryFilter} onDelete={() => onCategoryFilterChange?.('')} variant="outlined" sx={{ height: 32, borderBottomColor: 'accent.main' }} />}
           </Box>
         )}
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minHeight: 32 }}>
           <Typography variant="caption" color="text.secondary">
             {filtered.length} {filtered.length === 1 ? 'lançamento' : 'lançamentos'}
-            {filtered.length > 0 && <> · saldo <Box component="span" sx={{ color: balance >= 0 ? 'secondary.main' : 'error.light', fontWeight: 700 }}>{balance >= 0 ? '' : '− '}{formatBRL(Math.abs(balance))}</Box></>}
+            {filtered.length > 0 && <> · saldo <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>{formatSignedBRL(Math.round(balance * 100) / 100)}</Box></>}
           </Typography>
           {hasAnyFilter && (
             <Button size="small" color="inherit" onClick={clearAll} sx={{ minHeight: 32, color: 'text.secondary' }}>
@@ -465,7 +473,7 @@ export function TransactionList({
           return (
             <Box key={group.key}>
               {group.title && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: { xs: 1.5, sm: 2 }, py: 0.75, bgcolor: 'rgba(255, 255, 255, 0.03)', borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', px: { xs: 1.5, sm: 2 }, pt: 2, pb: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="caption" fontWeight={700} color="text.secondary">{group.title}</Typography>
                   {dayExpenses > 0 && <Typography variant="caption" color="text.secondary">− {formatBRL(dayExpenses)}</Typography>}
                 </Box>

@@ -11,3 +11,8 @@ client/dist
 
 # Dados financeiros pessoais: nunca versionar
 server/data/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Saída do inspector da skill de design (capturas antes/depois)
+.taste-skill/

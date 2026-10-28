@@ -56,7 +56,7 @@ export function CategoryPicker({ transaction, categories = [], onSelect, onClose
               >
                 <CategoryAvatar category={category.name} categories={categories} size={36} />
                 <Typography variant="body1" sx={{ flex: 1, textAlign: 'left' }}>{category.name}</Typography>
-                {selected && <CheckIcon color="primary" />}
+                {selected && <CheckIcon sx={{ color: 'accent.main' }} />}
               </ButtonBase>
             );
           })}

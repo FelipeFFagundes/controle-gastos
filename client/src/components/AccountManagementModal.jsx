@@ -110,7 +110,7 @@ export function AccountManagementModal({
     <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="sm" fullScreen={isMobile}>
       <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CreditCardIcon color="primary" />
+          <CreditCardIcon sx={{ color: 'accent.main' }} />
           <Typography variant="h6" fontWeight={700}>
             Gerenciar Cartões & Contas
           </Typography>
@@ -129,15 +129,15 @@ export function AccountManagementModal({
             sx={{
               p: 2,
               borderRadius: 2.5,
-              bgcolor: 'rgba(255, 255, 255, 0.03)',
+              bgcolor: 'action.hover',
               border: '1px solid',
-              borderColor: 'primary.main',
+              borderColor: 'accent.main',
               display: 'flex',
               flexDirection: 'column',
               gap: 2
             }}
           >
-            <Typography variant="subtitle2" fontWeight={700} color="primary.light">
+            <Typography variant="subtitle2" fontWeight={700} color="accent.main">
               {isCreating ? 'Novo Cartão / Conta' : 'Editar Cartão / Conta'}
             </Typography>
 
@@ -246,14 +246,14 @@ export function AccountManagementModal({
               sx={{
                 mb: 1,
                 borderRadius: 2,
-                bgcolor: 'rgba(255, 255, 255, 0.02)',
+                bgcolor: 'action.hover',
                 border: '1px solid',
                 borderColor: 'divider',
                 px: 2,
                 py: 1
               }}
             >
-              <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: acc.color || 'primary.main', mr: 2, flexShrink: 0 }} />
+              <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: acc.color || 'accent.main', mr: 2, flexShrink: 0 }} />
               <ListItemText
                 primary={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>

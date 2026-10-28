@@ -178,25 +178,17 @@ export function InstallmentsTracker({
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
+            alignItems: 'stretch',
             gap: 2,
             width: '100%'
           }}
         >
-          {/* Campo de Busca centralizado */}
           <TextField
             size="small"
-            placeholder="Buscar compras parceladas..."
+            placeholder="Buscar compras parceladas"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{
-              width: '100%',
-              maxWidth: 480,
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 2.5,
-                bgcolor: 'rgba(255, 255, 255, 0.03)'
-              }
-            }}
+            sx={{ width: '100%', '& .MuiInputBase-root': { minHeight: 44 } }}
             slotProps={{ input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -213,30 +205,26 @@ export function InstallmentsTracker({
             } }}
           />
 
-          {/* Chips de Cartões / Contas Centralizados */}
+          {/* Filtro por cartão/conta: o selecionado fica em branco com a linha jade na borda de baixo */}
           <Box
             sx={{
               display: 'flex',
               gap: 1,
               alignItems: 'center',
-              justifyContent: 'center',
               flexWrap: 'wrap',
-              width: '100%',
-              py: 0.5
+              width: '100%'
             }}
           >
             <Chip
               label={`Todos (${installments.length})`}
-              size="small"
               clickable
-              color={selectedAccount === 'ALL' ? 'primary' : 'default'}
-              variant={selectedAccount === 'ALL' ? 'filled' : 'outlined'}
+              variant="outlined"
+              aria-pressed={selectedAccount === 'ALL'}
               onClick={() => setSelectedAccount('ALL')}
               sx={{
-                fontWeight: 600,
-                borderRadius: 2,
-                px: 0.5,
-                transition: 'all 0.2s ease'
+                height: 36,
+                color: selectedAccount === 'ALL' ? 'text.primary' : 'text.secondary',
+                ...(selectedAccount === 'ALL' && { borderBottomColor: 'accent.main' })
               }}
             />
             {accountOptions.map(accName => {
@@ -247,32 +235,15 @@ export function InstallmentsTracker({
                 <Chip
                   key={accName}
                   label={`${accName} (${count})`}
-                  size="small"
                   clickable
-                  variant={isSelected ? 'filled' : 'outlined'}
+                  variant="outlined"
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedAccount(isSelected ? 'ALL' : accName)}
-                  icon={
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        bgcolor: isSelected ? '#fff' : accColor,
-                        ml: 0.75
-                      }}
-                    />
-                  }
+                  icon={<Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: accColor, ml: 0.75 }} />}
                   sx={{
-                    fontWeight: 600,
-                    borderRadius: 2,
-                    px: 0.5,
-                    borderColor: isSelected ? accColor : 'divider',
-                    bgcolor: isSelected ? accColor : 'transparent',
-                    color: isSelected ? '#fff' : 'text.primary',
-                    '&:hover': {
-                      bgcolor: isSelected ? accColor : 'rgba(255, 255, 255, 0.05)'
-                    },
-                    transition: 'all 0.2s ease'
+                    height: 36,
+                    color: isSelected ? 'text.primary' : 'text.secondary',
+                    ...(isSelected && { borderBottomColor: 'accent.main' })
                   }}
                 />
               );
@@ -280,52 +251,27 @@ export function InstallmentsTracker({
           </Box>
         </Box>
 
-        {/* Barra de Totais Filtrados com estilo de pílula integrada centralizada */}
+        {/* Totais do filtro atual: rótulo em cinza em cima, valor em branco embaixo */}
         <Box
           sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            gap: { xs: 2, sm: 4 },
-            pt: 1.5,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 2,
+            pt: 2,
             borderTop: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'rgba(255, 255, 255, 0.015)',
-            borderRadius: 1.5,
-            px: 2,
-            py: 1
+            borderColor: 'divider'
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'warning.main' }} />
-            <Typography variant="caption" color="text.secondary">
-              Neste mês:{' '}
-              <Typography component="span" variant="caption" fontWeight={700} color="warning.main">
-                {formatBRL(totalMonthlyCommitment)}
-              </Typography>
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'info.main' }} />
-            <Typography variant="caption" color="text.secondary">
-              Saldo futuro:{' '}
-              <Typography component="span" variant="caption" fontWeight={700} color="info.light">
-                {formatBRL(totalFutureDebt)}
-              </Typography>
-            </Typography>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'text.secondary' }} />
-            <Typography variant="caption" color="text.secondary">
-              Total a quitar:{' '}
-              <Typography component="span" variant="caption" fontWeight={700} color="text.primary">
-                {formatBRL(totalInstallmentsDebt)}
-              </Typography>
-            </Typography>
-          </Box>
+          {[
+            ['Neste mês', totalMonthlyCommitment],
+            ['Saldo futuro', totalFutureDebt],
+            ['Total a quitar', totalInstallmentsDebt]
+          ].map(([label, value]) => (
+            <Box key={label} sx={{ minWidth: 0 }}>
+              <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
+              <Typography sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, fontWeight: 600, mt: 0.25 }} noWrap>{formatBRL(value)}</Typography>
+            </Box>
+          ))}
         </Box>
       </Card>
 
@@ -344,7 +290,6 @@ export function InstallmentsTracker({
               sx={{
                 p: 2,
                 px: 2.5,
-                bgcolor: 'rgba(255, 255, 255, 0.02)',
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
@@ -355,21 +300,19 @@ export function InstallmentsTracker({
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: group.color, flexShrink: 0 }} />
-                <Typography variant="subtitle1" fontWeight={800} letterSpacing={-0.3}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: group.color, flexShrink: 0 }} />
+                <Typography component="h2" variant="subtitle1">
                   {group.accountName}
                 </Typography>
-                <Chip
-                  label={`${group.items.length} ${group.items.length === 1 ? 'compra' : 'compras'}`}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.8125rem', fontWeight: 600 }}
-                />
+                <Typography variant="body2" color="text.secondary">
+                  {group.items.length} {group.items.length === 1 ? 'compra' : 'compras'}
+                </Typography>
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                 <Typography variant="caption" color="text.secondary">
                   Neste mês:{' '}
-                  <Typography component="span" variant="caption" fontWeight={700} color="warning.main">
+                  <Typography component="span" variant="caption" fontWeight={700} color="text.primary">
                     {formatBRL(group.totalThisMonth)}
                   </Typography>
                 </Typography>
@@ -436,10 +379,10 @@ function InstallmentRowItem({
     <Box
       sx={{
         p: { xs: 2, sm: 2.5 },
-        bgcolor: isExpanded ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+        bgcolor: isExpanded ? 'action.hover' : 'transparent',
         transition: 'background-color 0.15s ease',
         '&:hover': {
-          bgcolor: 'rgba(255, 255, 255, 0.03)'
+          bgcolor: 'action.hover'
         }
       }}
     >
@@ -480,7 +423,7 @@ function InstallmentRowItem({
               <Chip
                 label={item.category}
                 size="small"
-                sx={{ height: 20, fontSize: '0.8125rem', bgcolor: 'rgba(255, 255, 255, 0.06)' }}
+                sx={{ height: 20, fontSize: '0.8125rem', bgcolor: 'action.selected' }}
               />
             )}
 
@@ -490,7 +433,8 @@ function InstallmentRowItem({
                 label={projectionText}
                 size="small"
                 color="success"
-                sx={{ height: 20, fontSize: '0.8125rem', fontWeight: 700 }}
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.8125rem', fontWeight: 600 }}
               />
             ) : (
               <Typography variant="caption" color="text.secondary" fontWeight={500}>
@@ -513,11 +457,12 @@ function InstallmentRowItem({
           <LinearProgress
             variant="determinate"
             value={percentage}
-            color={isFinalMonth ? 'success' : 'info'}
+            color={isFinalMonth ? 'success' : 'inherit'}
             sx={{
-              height: 6,
-              borderRadius: 3,
-              bgcolor: 'rgba(255, 255, 255, 0.08)'
+              height: 4,
+              bgcolor: 'divider',
+              color: 'text.secondary',
+              '& .MuiLinearProgress-bar': isFinalMonth ? undefined : { bgcolor: 'text.secondary' }
             }}
           />
         </Box>
@@ -535,22 +480,22 @@ function InstallmentRowItem({
         >
           {/* Valor da Parcela Deste Mês */}
           <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.8125rem', fontWeight: 600 }}>
-              PARCELA NESTE MÊS
+            <Typography variant="caption" color="text.secondary" display="block">
+              Parcela neste mês
             </Typography>
-            <Typography variant="body1" fontWeight={800} color="warning.main">
+            <Typography variant="body1" fontWeight={600}>
               {formatBRL(item.amountThisMonth || item.amountPerInstallment)}
             </Typography>
           </Box>
 
           {/* Saldo Restante */}
           <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.8125rem', fontWeight: 600 }}>
-              SALDO A PAGAR
+            <Typography variant="caption" color="text.secondary" display="block">
+              Saldo a pagar
             </Typography>
             <Typography
               variant="body2"
-              fontWeight={700}
+              fontWeight={600}
               color={isFinalMonth ? 'success.main' : 'text.primary'}
             >
               {isFinalMonth ? 'Quita agora' : formatBRL(item.remainingDebt)}
@@ -568,7 +513,7 @@ function InstallmentRowItem({
               size="small"
               onClick={onToggleExpand}
               sx={{
-                bgcolor: isExpanded ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                bgcolor: isExpanded ? 'action.selected' : 'transparent',
                 border: '1px solid',
                 borderColor: isExpanded ? 'divider' : 'transparent'
               }}
@@ -593,11 +538,11 @@ function InstallmentRowItem({
           }}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
-              Cronograma das {total} Parcelas
+            <Typography variant="caption" fontWeight={600} color="text.secondary">
+              Cronograma das {total} parcelas
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Valor Total Contratado: <strong>{formatBRL(item.totalAmount)}</strong>
+              Valor total contratado: <strong>{formatBRL(item.totalAmount)}</strong>
             </Typography>
           </Box>
 
@@ -632,7 +577,7 @@ function InstallmentRowItem({
                       ? 'rgba(235, 181, 74, 0.1)'
                       : isPast
                         ? 'rgba(108, 203, 122, 0.06)'
-                        : 'rgba(255, 255, 255, 0.02)',
+                        : 'action.hover',
                     minWidth: 100,
                     textAlign: 'center'
                   }}
@@ -643,7 +588,7 @@ function InstallmentRowItem({
                     fontWeight={isCurrent ? 800 : 600}
                     color={isCurrent ? 'warning.main' : isPast ? 'success.main' : 'text.secondary'}
                   >
-                    {parcelNum}/{total} {isCurrent ? '★ Atual' : isPast ? '✓ Pago' : ''}
+                    {parcelNum}/{total} {isCurrent ? '· atual' : isPast ? '· paga' : ''}
                   </Typography>
                   <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.8125rem' }}>
                     {formatMonthShort(estimatedMonth)}

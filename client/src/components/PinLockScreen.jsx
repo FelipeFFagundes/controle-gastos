@@ -104,21 +104,14 @@ export function PinLockScreen({ onUnlock }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: '#0C1311',
-        p: 2,
-        backgroundImage: 'radial-gradient(circle at 50% 20%, rgba(52, 195, 162, 0.14) 0%, transparent 60%)'
+        bgcolor: 'background.default',
+        p: 2
       }}
     >
       <Card
         sx={{
           width: '100%',
           maxWidth: 400,
-          borderRadius: 4,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'rgba(19, 29, 26, 0.88)',
-          backdropFilter: 'blur(16px)',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
           overflow: 'hidden',
           animation: shake ? 'shake 0.4s ease-in-out' : 'none',
           '@keyframes shake': {
@@ -130,22 +123,7 @@ export function PinLockScreen({ onUnlock }) {
       >
         <CardContent sx={{ p: { xs: 3, sm: 4 }, textAlign: 'center' }}>
           {/* Ícone e Cabeçalho */}
-          <Box
-            sx={{
-              width: 56,
-              height: 56,
-              borderRadius: 3,
-              bgcolor: 'primary.main',
-              color: 'primary.contrastText',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px auto',
-              boxShadow: '0 8px 16px rgba(52, 195, 162, 0.3)'
-            }}
-          >
-            <LockOutlinedIcon sx={{ fontSize: 28 }} />
-          </Box>
+          <LockOutlinedIcon sx={{ fontSize: 28, color: 'accent.main', display: 'block', mx: 'auto', mb: 2 }} />
 
           <Typography variant="h6" fontWeight={800} letterSpacing={-0.3} gutterBottom>
             Acesso Protegido
@@ -166,9 +144,8 @@ export function PinLockScreen({ onUnlock }) {
                     height: 18,
                     borderRadius: '50%',
                     border: '2px solid',
-                    borderColor: isFilled ? 'primary.main' : 'rgba(255, 255, 255, 0.2)',
-                    bgcolor: isFilled ? 'primary.main' : 'transparent',
-                    boxShadow: isFilled ? '0 0 10px rgba(52, 195, 162, 0.6)' : 'none',
+                    borderColor: isFilled ? 'accent.main' : 'control.main',
+                    bgcolor: isFilled ? 'accent.main' : 'transparent',
                     transition: 'all 0.15s ease'
                   }}
                 />
@@ -206,11 +183,11 @@ export function PinLockScreen({ onUnlock }) {
                   fontSize: '1.4rem',
                   fontWeight: 700,
                   color: 'text.primary',
-                  borderColor: 'rgba(255, 255, 255, 0.08)',
-                  bgcolor: 'rgba(255, 255, 255, 0.03)',
+                  borderColor: 'action.selected',
+                  bgcolor: 'action.hover',
                   '&:hover': {
-                    bgcolor: 'rgba(255, 255, 255, 0.08)',
-                    borderColor: 'primary.main'
+                    bgcolor: 'action.selected',
+                    borderColor: 'accent.main'
                   },
                   '&:active': {
                     transform: 'scale(0.96)'
@@ -249,11 +226,11 @@ export function PinLockScreen({ onUnlock }) {
                 fontSize: '1.4rem',
                 fontWeight: 700,
                 color: 'text.primary',
-                borderColor: 'rgba(255, 255, 255, 0.08)',
-                bgcolor: 'rgba(255, 255, 255, 0.03)',
+                borderColor: 'action.selected',
+                bgcolor: 'action.hover',
                 '&:hover': {
-                  bgcolor: 'rgba(255, 255, 255, 0.08)',
-                  borderColor: 'primary.main'
+                  bgcolor: 'action.selected',
+                  borderColor: 'accent.main'
                 },
                 '&:active': {
                   transform: 'scale(0.96)'
@@ -271,11 +248,11 @@ export function PinLockScreen({ onUnlock }) {
                 height: 56,
                 borderRadius: 3,
                 color: 'text.secondary',
-                bgcolor: 'rgba(255, 255, 255, 0.02)',
+                bgcolor: 'action.hover',
                 border: '1px solid',
                 borderColor: 'transparent',
                 '&:hover': {
-                  bgcolor: 'rgba(255, 255, 255, 0.06)',
+                  bgcolor: 'action.selected',
                   color: 'error.light'
                 }
               }}
@@ -294,7 +271,7 @@ export function PinLockScreen({ onUnlock }) {
           )}
 
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 3, fontSize: '0.8125rem' }}>
-            🔒 Sessão salva por 30 dias neste dispositivo
+            Sessão salva por 30 dias neste dispositivo
           </Typography>
         </CardContent>
       </Card>

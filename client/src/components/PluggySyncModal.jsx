@@ -132,7 +132,7 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
             </Alert>
           ) : (
             <>
-              <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="subtitle2" fontWeight={700} gutterBottom>
                   1. Conectar banco ou cartão
                 </Typography>
@@ -156,7 +156,7 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
                 <Chip label="Sincronização" size="small" />
               </Divider>
 
-              <Box sx={{ bgcolor: 'rgba(255, 255, 255, 0.02)', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ bgcolor: 'action.hover', p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="subtitle2" fontWeight={700} gutterBottom>
                   2. Período
                 </Typography>
@@ -194,7 +194,7 @@ export function PluggySyncModal({ isOpen, onClose, onSyncSuccess }) {
                 </Box>
               </Box>
 
-              <Box sx={{ bgcolor: 'rgba(239, 117, 100, 0.06)', p: 1.5, borderRadius: 2, border: '1px solid rgba(239, 117, 100, 0.25)' }}>
+              <Box sx={{ bgcolor: 'rgba(235, 90, 104, 0.06)', p: 1.5, borderRadius: 2, border: '1px solid rgba(235, 90, 104, 0.25)' }}>
                 <FormControlLabel
                   control={
                     <Checkbox

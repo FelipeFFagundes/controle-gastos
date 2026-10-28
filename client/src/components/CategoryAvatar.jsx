@@ -33,9 +33,10 @@ export function categoryVisual(categoryName, categories = [], type = 'expense') 
   return { color: category?.color || '#7D8B86', Icon: ICONS[category?.icon] || CategoryIcon };
 }
 
-// Círculo com o ícone e a cor da categoria. `paid` mostra um selo de "pago".
+// Ícone da categoria, em cinza e sem fundo: a cor não muda de categoria para categoria (o nome dela já
+// aparece na linha). Ocupa um quadrado de `size` para as linhas alinharem. `paid` mostra um selo de "pago".
 export function CategoryAvatar({ category, categories, type, size = 40, paid = false }) {
-  const { color, Icon } = categoryVisual(category, categories, type);
+  const { Icon } = categoryVisual(category, categories, type);
   return (
     <Box
       sx={{
@@ -43,26 +44,24 @@ export function CategoryAvatar({ category, categories, type, size = 40, paid = f
         width: size,
         height: size,
         flexShrink: 0,
-        borderRadius: '50%',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: `${color}26`,
-        color
+        color: 'text.secondary'
       }}
     >
-      <Icon sx={{ fontSize: size * 0.5 }} />
+      <Icon sx={{ fontSize: Math.min(22, size * 0.5) }} />
       {paid && (
         <Box
           sx={{
             position: 'absolute',
-            right: -2,
-            bottom: -2,
-            width: 18,
-            height: 18,
+            right: 2,
+            bottom: 2,
+            width: 16,
+            height: 16,
             borderRadius: '50%',
             bgcolor: 'secondary.main',
-            color: '#fff',
+            color: 'secondary.contrastText',
             border: '2px solid',
             borderColor: 'background.paper',
             display: 'flex',
