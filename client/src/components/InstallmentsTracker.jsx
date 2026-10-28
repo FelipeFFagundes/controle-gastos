@@ -21,6 +21,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import { formatBRL } from '../format';
 
 // Helpers de data
 function addMonths(monthStr, count) {
@@ -61,13 +62,6 @@ export function InstallmentsTracker({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState('ALL');
   const [expandedKeys, setExpandedKeys] = useState({});
-
-  const formatBRL = (val) => {
-    return Number(val || 0).toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    });
-  };
 
   const toggleExpand = (key) => {
     setExpandedKeys(prev => ({

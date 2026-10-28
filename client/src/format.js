@@ -1,7 +1,14 @@
 // Formatação e leitura de valores no padrão brasileiro.
 
+// Com os valores ocultos (olho no cabeçalho, ver hideValues.js), todo valor em reais vira "R$ •••••",
+// para mostrar o app a alguém sem expor os gastos. Quem liga e desliga é o App, que se redesenha inteiro.
+let valuesHidden = false;
+export const setValuesHidden = (hidden) => { valuesHidden = hidden; };
+
 export const formatBRL = (value) =>
-  Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  valuesHidden
+    ? 'R$ •••••'
+    : Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 // Valor com o sinal no texto: "+R$ 2.879,57", "−R$ 9.955,78" (zero fica sem sinal).
 export const formatSignedBRL = (value) =>
