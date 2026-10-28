@@ -36,6 +36,8 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 
 import { AccountBreakdown, SummaryCards } from './components/SummaryCards';
@@ -55,6 +57,7 @@ import { useBackClose } from './backStack';
 import { withViewTransition } from './viewTransition';
 import { useShortcuts } from './shortcuts';
 import { useThemeMode } from './themeMode.jsx';
+import { useHideValues } from './hideValues';
 import { loadPluggyConnect } from './pluggyWidget';
 import {
   monthQueryOptions,
@@ -195,6 +198,7 @@ export default function App() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const themeMode = useThemeMode();
+  const hideValues = useHideValues();
   const auth = useAuthGate(() => {
     clearToken();
     clearPersistedData(); // os dados guardados no aparelho saem junto com a sessão
@@ -298,6 +302,7 @@ export default function App() {
   useShortcuts({
     n: openNewTransaction,
     s: () => setIsPluggyModalOpen(true),
+    o: hideValues.toggle,
     '/': focusSearch,
     ArrowLeft: () => changeMonth(-1),
     ArrowRight: () => changeMonth(1),
@@ -533,6 +538,16 @@ export default function App() {
             </Box>
           </Box>
 
+          <Tooltip title={<>{hideValues.hidden ? 'Mostrar valores' : 'Ocultar valores'} <Kbd>O</Kbd></>}>
+            <IconButton
+              onClick={hideValues.toggle}
+              aria-label={hideValues.hidden ? 'Mostrar valores' : 'Ocultar valores'}
+              aria-pressed={hideValues.hidden}
+              sx={{ width: 44, height: 44, color: hideValues.hidden ? 'accent.main' : 'inherit' }}
+            >
+              {hideValues.hidden ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Sincronizar bancos">
             <IconButton
               onClick={() => setIsPluggyModalOpen(true)}
