@@ -2,16 +2,11 @@ import { createTheme } from '@mui/material/styles';
 import { palettes } from './palette';
 
 // Fontes empacotadas com o app (funcionam offline). Só o subconjunto latino, que cobre o português.
-import '@fontsource/ibm-plex-sans/latin-400.css';
-import '@fontsource/ibm-plex-sans/latin-500.css';
-import '@fontsource/ibm-plex-sans/latin-600.css';
-import '@fontsource/ibm-plex-sans/latin-700.css';
-import '@fontsource/ibm-plex-sans-condensed/latin-500.css';
-import '@fontsource/ibm-plex-sans-condensed/latin-600.css';
 import '@fontsource/inter/latin-400.css';
 import '@fontsource/inter/latin-500.css';
 import '@fontsource/inter/latin-600.css';
 import '@fontsource/inter/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-500.css';
 
 // Papéis das cores (ver palette.js):
 //   primary   -> marca: a ação principal
@@ -26,20 +21,25 @@ import '@fontsource/inter/latin-700.css';
 // linha de 1px, sem sombra. Toda seleção (aba, filtro, navegação) é uma linha de 1px na cor de destaque,
 // na borda mais próxima, da largura do rótulo.
 //
-// Tipografia: no escuro, IBM Plex Sans no texto e a versão condensada nos títulos e nos números grandes;
-// no claro (Wise), Inter em tudo, a alternativa que o próprio Wise indica para a fonte dele.
+// Tipografia: Inter nos dois temas, a alternativa que Coinbase e Mercury indicam para as fontes deles. No
+// escuro (Coinbase), os números grandes vão em JetBrains Mono, no lugar da Coinbase Mono, e o título fica
+// em peso 400. No claro (Mercury), números e títulos em Inter 500, perto do peso leve do Mercury (480).
 const RADIUS_CONTROL = 4;
 const RADIUS_CARD = 6;
 const SYSTEM_FALLBACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
 
 const FONTS = {
   dark: {
-    text: `"IBM Plex Sans", ${SYSTEM_FALLBACK}`,
-    figures: `"IBM Plex Sans Condensed", "IBM Plex Sans", ${SYSTEM_FALLBACK}`
+    text: `"Inter", ${SYSTEM_FALLBACK}`,
+    figures: `"JetBrains Mono", "Inter", ${SYSTEM_FALLBACK}`, // taste-skill-ignore: Coinbase usa fonte mono nos valores
+    figuresWeight: 500,
+    titleWeight: 400
   },
   light: {
     text: `"Inter", ${SYSTEM_FALLBACK}`,
-    figures: `"Inter", ${SYSTEM_FALLBACK}`
+    figures: `"Inter", ${SYSTEM_FALLBACK}`,
+    figuresWeight: 500,
+    titleWeight: 500
   }
 };
 
@@ -67,15 +67,16 @@ export function createAppTheme(mode = 'dark') {
       fontFamily: fonts.text,
       // Fonte dos números grandes e dos títulos (use com sx={{ fontFamily: 'figures' }} via theme.typography.figures).
       figures: fonts.figures,
+      figuresWeight: fonts.figuresWeight,
       // Valores e datas com dígitos de largura fixa: os números se alinham e não "tremem" ao mudar.
       allVariants: {
         fontVariantNumeric: 'tabular-nums'
       },
       // Título da tela: tamanho de app, não de página de marketing.
       h1: {
-        fontFamily: fonts.figures,
+        fontFamily: fonts.text,
         fontSize: '1.5rem',
-        fontWeight: 600,
+        fontWeight: fonts.titleWeight,
         lineHeight: 1.25,
         letterSpacing: '-0.01em'
       },

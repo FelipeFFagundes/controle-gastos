@@ -1,7 +1,7 @@
 /* Cores da primeira pintura, antes do tema do MUI carregar (ver palette.js e themeMode.jsx). */
 body {
-  background-color: #111111;
-  color: #F2F2F2;
+  background-color: #0A0B0D;
+  color: #FFFFFF;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
@@ -10,8 +10,8 @@ body {
 }
 
 :root[data-theme='light'] body {
-  background-color: #E8EBE6;
-  color: #0E0F0C;
+  background-color: #F4F4F9;
+  color: #28253B;
 }
 
 /* Rede de segurança: nenhum elemento deve alargar a página no celular. */

@@ -19,6 +19,7 @@ import { useBackClose } from '../backStack';
 
 // Fonte dos números grandes (ver theme.js).
 const figures = (theme) => theme.typography.figures;
+const figuresWeight = (theme) => theme.typography.figuresWeight;
 
 // Renda do mês como uma régua: o trilho tem o tamanho das entradas, o gasto preenche o trilho e o que
 // passa das entradas continua depois do fim dele, em vermelho. A meta de sobra é um traço jade no trilho.
@@ -77,7 +78,7 @@ function Stat({ label, value, signed = false }) {
   return (
     <Box sx={{ bgcolor: 'background.paper', px: { xs: 2, sm: 2.5 }, py: 2, minWidth: 0 }}>
       <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
-      <Typography sx={{ fontFamily: figures, fontSize: { xs: '1.125rem', sm: '1.375rem' }, fontWeight: 600, mt: 0.5, color: value === 0 ? 'text.secondary' : 'text.primary' }} noWrap>
+      <Typography sx={{ fontFamily: figures, fontSize: { xs: '1.125rem', sm: '1.375rem' }, fontWeight: figuresWeight, mt: 0.5, color: value === 0 ? 'text.secondary' : 'text.primary' }} noWrap>
         {signed ? formatSignedBRL(value) : formatBRL(value)}
       </Typography>
     </Box>
@@ -135,7 +136,7 @@ export function SummaryCards({ summary, onUpdateCustomSurplus }) {
           <Typography variant="body2" color="text.secondary">
             {isOverBudget ? 'Acima do limite' : 'Disponível para gastar'}
           </Typography>
-          <Typography sx={{ fontFamily: figures, fontWeight: 600, fontSize: { xs: '2rem', sm: '2.25rem' }, lineHeight: 1.15, letterSpacing: '-0.01em', mt: 0.5, color: isOverBudget ? 'error.main' : 'text.primary' }}>
+          <Typography sx={{ fontFamily: figures, fontWeight: figuresWeight, fontSize: { xs: '2rem', sm: '2.25rem' }, lineHeight: 1.15, letterSpacing: '-0.01em', mt: 0.5, color: isOverBudget ? 'error.main' : 'text.primary' }}>
             {isOverBudget ? formatSignedBRL(availableToSpend) : formatBRL(availableToSpend)}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>{subline}</Typography>

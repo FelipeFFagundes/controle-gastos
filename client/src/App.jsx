@@ -484,7 +484,7 @@ export default function App() {
       )}
 
       {/* Cabeçalho (fica parado durante as transições: ver .app-header no index.css) */}
-      <AppBar className="app-header" position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', pt: 'env(safe-area-inset-top)' }}>
+      <AppBar className="app-header" position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', color: 'text.primary', pt: 'env(safe-area-inset-top)' }}>
         <Toolbar sx={{ gap: 1, px: { xs: 1, sm: 3 }, minHeight: { xs: 60 } }}>
           <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1.25, mr: 1 }}>
             <BrandMark />
@@ -564,7 +564,7 @@ export default function App() {
             {menuItem(<SyncIcon fontSize="small" />, 'Sincronizar bancos', () => setIsPluggyModalOpen(true))}
             {auth.pinRequired && menuItem(<LockOutlinedIcon fontSize="small" />, 'Bloquear app', handleLockApp)}
             {themeMode.mode === 'dark'
-              ? menuItem(<LightModeOutlinedIcon fontSize="small" />, 'Tema claro (Wise)', themeMode.toggleMode)
+              ? menuItem(<LightModeOutlinedIcon fontSize="small" />, 'Tema claro', themeMode.toggleMode)
               : menuItem(<DarkModeOutlinedIcon fontSize="small" />, 'Tema escuro', themeMode.toggleMode)}
             <Divider />
             {menuItem(<RestoreIcon fontSize="small" />, 'Carregar dados de exemplo', handleResetSeed)}
