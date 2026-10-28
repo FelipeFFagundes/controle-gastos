@@ -3,6 +3,14 @@
 export const formatBRL = (value) =>
   Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+// Valor com o sinal no texto: "+R$ 2.879,57", "−R$ 9.955,78" (zero fica sem sinal).
+export const formatSignedBRL = (value) =>
+  `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatBRL(Math.abs(value || 0))}`;
+
+// 0.0014 -> "0,1%"; 3.4575 -> "345,8%". Uma casa decimal, para um valor pequeno não virar "0%".
+export const formatPercent = (ratio) =>
+  `${(ratio * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+
 // Aceita o que a pessoa digita no celular: "45,90", "1.234,56", "45.90" ou "45".
 export function parseAmount(text) {
   const raw = String(text ?? '').trim().replace(/[^\d.,-]/g, '');

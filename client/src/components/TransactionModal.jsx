@@ -217,7 +217,7 @@ export function TransactionModal({
           </Box>
 
           {type === 'expense' && (
-            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.02)', border: '1px solid', borderColor: 'divider' }}>
+            <Box sx={{ p: 1.5, borderRadius: '4px', bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
               <FormControlLabel
                 control={<Switch checked={isInstallment} onChange={(e) => setIsInstallment(e.target.checked)} />}
                 label="Compra parcelada"

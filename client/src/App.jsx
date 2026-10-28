@@ -21,11 +21,8 @@ import {
   BottomNavigation,
   BottomNavigationAction,
   Paper,
-  Fab,
-  Badge,
   Tooltip
 } from '@mui/material';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
@@ -37,9 +34,11 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import LayersIcon from '@mui/icons-material/Layers';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
+import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 
-import { SummaryCards } from './components/SummaryCards';
+import { AccountBreakdown, SummaryCards } from './components/SummaryCards';
 import { TransactionList } from './components/TransactionList';
 import { TransactionModal } from './components/TransactionModal';
 import { CategoryBreakdown } from './components/CategoryBreakdown';
@@ -55,6 +54,7 @@ import { clearPersistedData } from './queryClient';
 import { useBackClose } from './backStack';
 import { withViewTransition } from './viewTransition';
 import { useShortcuts } from './shortcuts';
+import { useThemeMode } from './themeMode.jsx';
 import { loadPluggyConnect } from './pluggyWidget';
 import {
   monthQueryOptions,
@@ -87,6 +87,18 @@ const UNDO_DELAY_MS = 6000;
 const SAFE_BOTTOM = 'env(safe-area-inset-bottom)';
 const TAB_ORDER = ['overview', 'transactions', 'installments'];
 const SEARCH_INPUT_ID = 'transaction-search';
+const TAB_TITLES = { overview: 'Visão geral', transactions: 'Lançamentos', installments: 'Parcelas' };
+
+// Marca do app: três linhas de razão que encurtam, desenhadas no jade.
+function BrandMark() {
+  return (
+    <Box component="svg" viewBox="0 0 20 20" aria-hidden="true" sx={{ width: 20, height: 20, color: 'accent.main', flexShrink: 0 }}>
+      <rect x="1" y="3" width="18" height="3" fill="currentColor" />
+      <rect x="1" y="9" width="12" height="3" fill="currentColor" />
+      <rect x="1" y="15" width="6" height="3" fill="currentColor" />
+    </Box>
+  );
+}
 
 // Estado da autenticação: 'checking' | 'locked' | 'open' | 'offline'.
 // Com um token salvo, o app abre na hora com os dados guardados e confere a sessão em segundo plano.
@@ -182,6 +194,7 @@ function usePrefetchOnIdle(month, ready) {
 export default function App() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const themeMode = useThemeMode();
   const auth = useAuthGate(() => {
     clearToken();
     clearPersistedData(); // os dados guardados no aparelho saem junto com a sessão
@@ -426,7 +439,7 @@ export default function App() {
   const monthUnavailable = !monthQuery.data && monthQuery.isError;
   const showSkeleton = !monthQuery.data && !monthUnavailable;
   const unavailableNotice = monthUnavailable && (
-    <Box sx={{ p: 4, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: '16px' }}>
+    <Box sx={{ p: 4, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: '6px' }}>
       <Typography variant="subtitle1" fontWeight={700}>{formatMonthTitle(currentMonth)} não está salvo no aparelho</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
         {offline ? 'Conecte-se à internet para ver este mês.' : monthQuery.error?.message}
@@ -445,7 +458,7 @@ export default function App() {
         onClose={(e, reason) => reason !== 'clickaway' && setToast(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         // No celular fica acima da barra inferior e à esquerda do botão +.
-        sx={{ bottom: { xs: `calc(80px + ${SAFE_BOTTOM}) !important`, sm: '24px !important' }, right: { xs: '84px !important', sm: 'auto' } }}
+        sx={{ bottom: { xs: `calc(80px + ${SAFE_BOTTOM}) !important`, sm: '24px !important' } }}
       >
         {toast ? (
           <Alert
@@ -457,7 +470,7 @@ export default function App() {
                 {toast.action.label}
               </Button>
             )}
-            sx={{ width: '100%', borderRadius: '12px', alignItems: 'center' }}
+            sx={{ width: '100%', alignItems: 'center' }}
           >
             {toast.message}
           </Alert>
@@ -473,10 +486,8 @@ export default function App() {
       {/* Cabeçalho (fica parado durante as transições: ver .app-header no index.css) */}
       <AppBar className="app-header" position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', pt: 'env(safe-area-inset-top)' }}>
         <Toolbar sx={{ gap: 1, px: { xs: 1, sm: 3 }, minHeight: { xs: 60 } }}>
-          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1.5, mr: 1 }}>
-            <Box sx={{ p: 1, borderRadius: '10px', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex' }}>
-              <AccountBalanceWalletIcon fontSize="small" />
-            </Box>
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1.25, mr: 1 }}>
+            <BrandMark />
             <Typography variant="subtitle1" fontWeight={700} noWrap sx={{ display: { sm: 'none', md: 'block' } }}>
               Controle de Gastos
             </Typography>
@@ -484,7 +495,7 @@ export default function App() {
 
           {/* Seletor de mês: ocupa o espaço que sobrar, nunca alarga a tela */}
           <Box sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: { xs: 'flex-start', md: 'center' } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: 340, width: '100%', borderRadius: '12px', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(255, 255, 255, 0.03)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: 340, width: '100%', borderRadius: '4px', border: '1px solid', borderColor: 'divider' }}>
               <Tooltip title={<>Mês anterior <Kbd>←</Kbd></>}>
                 <IconButton
                   onClick={() => changeMonth(-1)}
@@ -534,7 +545,7 @@ export default function App() {
           </Tooltip>
           <Button
             variant="outlined"
-            color="secondary"
+            color="inherit"
             startIcon={<SyncIcon />}
             onClick={() => setIsPluggyModalOpen(true)}
             onPointerEnter={() => { loaders.pluggy(); loadPluggyConnect().catch(() => {}); }}
@@ -542,7 +553,7 @@ export default function App() {
           >
             Sincronizar <Kbd>S</Kbd>
           </Button>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openNewTransaction} sx={{ display: { xs: 'none', md: 'flex' } }}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={openNewTransaction} sx={{ display: { xs: 'none', sm: 'flex' }, flexShrink: 0 }}>
             Novo lançamento <Kbd>N</Kbd>
           </Button>
           <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} aria-label="Mais opções" sx={{ width: 44, height: 44 }}>
@@ -552,6 +563,9 @@ export default function App() {
             {menuItem(<CreditCardIcon fontSize="small" />, 'Cartões e contas', () => setIsAccountsModalOpen(true))}
             {menuItem(<SyncIcon fontSize="small" />, 'Sincronizar bancos', () => setIsPluggyModalOpen(true))}
             {auth.pinRequired && menuItem(<LockOutlinedIcon fontSize="small" />, 'Bloquear app', handleLockApp)}
+            {themeMode.mode === 'dark'
+              ? menuItem(<LightModeOutlinedIcon fontSize="small" />, 'Tema claro (Wise)', themeMode.toggleMode)
+              : menuItem(<DarkModeOutlinedIcon fontSize="small" />, 'Tema escuro', themeMode.toggleMode)}
             <Divider />
             {menuItem(<RestoreIcon fontSize="small" />, 'Carregar dados de exemplo', handleResetSeed)}
             {menuItem(<DeleteSweepIcon fontSize="small" />, 'Apagar todos os dados', handleClearAllTransactions, 'error.main')}
@@ -562,48 +576,50 @@ export default function App() {
       <Container
         maxWidth="lg"
         sx={{
-          py: { xs: 1.5, sm: 3 },
-          px: { xs: 1.5, sm: 3 },
-          pb: { xs: `calc(160px + ${SAFE_BOTTOM})`, sm: 4 }
+          py: { xs: 2, sm: 3 },
+          px: { xs: 2, sm: 3 },
+          pb: { xs: `calc(96px + ${SAFE_BOTTOM})`, sm: 4 }
         }}
       >
         {/* Abas no computador/tablet */}
         <Tabs value={activeTab} onChange={(e, tab) => goToTab(tab)} sx={{ display: { xs: 'none', sm: 'flex' }, mb: 3 }}>
-          <Tab value="overview" icon={<DashboardIcon fontSize="small" />} iconPosition="start" label={<span>Visão geral <Kbd>1</Kbd></span>} sx={{ minHeight: 48 }} />
-          <Tab value="transactions" icon={<ReceiptLongIcon fontSize="small" />} iconPosition="start" label={<span>Lançamentos ({transactions.length}) <Kbd>2</Kbd></span>} sx={{ minHeight: 48 }} />
+          <Tab value="overview" label={<span>{TAB_TITLES.overview} <Kbd>1</Kbd></span>} />
+          <Tab value="transactions" label={<span>{TAB_TITLES.transactions} <Kbd>2</Kbd></span>} />
           <Tab
             value="installments"
-            icon={<LayersIcon fontSize="small" />}
-            iconPosition="start"
-            label={<span>Parcelas ({installments.length}) <Kbd>3</Kbd></span>}
+            label={<span>{TAB_TITLES.installments} <Kbd>3</Kbd></span>}
             onPointerEnter={() => loaders.installments()}
-            sx={{ minHeight: 48 }}
           />
         </Tabs>
 
+        <Typography variant="h1" sx={{ mb: 2, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>{TAB_TITLES[activeTab]}</Typography>
+
         {activeTab === 'overview' && (unavailableNotice || (showSkeleton ? <OverviewSkeleton /> : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <SummaryCards
-              summary={summary}
-              accounts={accounts}
-              onSelectAccount={(name) => {
-                setAccountFilter(name);
-                setCategoryFilter('');
-                goToTab('transactions');
-              }}
-              onUpdateCustomSurplus={handleUpdateCustomSurplus}
-              onOpenManageAccounts={() => setIsAccountsModalOpen(true)}
-            />
-            <CategoryBreakdown
-              expensesByCategory={summary?.expensesByCategory || {}}
-              categories={categories}
-              totalExpense={summary?.totalExpense || 0}
-              onSelectCategory={(name) => {
-                setCategoryFilter(name);
-                setAccountFilter('');
-                goToTab('transactions');
-              }}
-            />
+            <SummaryCards summary={summary} onUpdateCustomSurplus={handleUpdateCustomSurplus} />
+            {/* Cartões e categorias lado a lado no computador, cada um da altura do próprio conteúdo. */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, alignItems: 'start' }}>
+              <AccountBreakdown
+                accounts={accounts}
+                expensesByAccount={summary?.expensesByAccount || {}}
+                onSelectAccount={(name) => {
+                  setAccountFilter(name);
+                  setCategoryFilter('');
+                  goToTab('transactions');
+                }}
+                onOpenManageAccounts={() => setIsAccountsModalOpen(true)}
+              />
+              <CategoryBreakdown
+                expensesByCategory={summary?.expensesByCategory || {}}
+                categories={categories}
+                totalExpense={summary?.totalExpense || 0}
+                onSelectCategory={(name) => {
+                  setCategoryFilter(name);
+                  setAccountFilter('');
+                  goToTab('transactions');
+                }}
+              />
+            </Box>
           </Box>
         )))}
 
@@ -635,28 +651,10 @@ export default function App() {
         )}
       </Container>
 
-      {/* Botão de novo lançamento no celular */}
-      <Fab
-        className="app-fab"
-        color="primary"
-        aria-label="Novo lançamento"
-        onClick={openNewTransaction}
-        sx={{
-          display: { md: 'none' },
-          position: 'fixed',
-          right: 16,
-          bottom: { xs: `calc(76px + ${SAFE_BOTTOM})`, sm: 24 },
-          zIndex: 30,
-          boxShadow: '0 8px 24px rgba(52, 195, 162, 0.35)'
-        }}
-      >
-        <AddIcon />
-      </Fab>
-
-      {/* Navegação inferior no celular */}
+      {/* Navegação inferior no celular. "Novo" fica na barra, ao alcance do polegar, sem cobrir a lista. */}
       <Paper
         className="app-bottom-nav"
-        elevation={6}
+        elevation={0}
         sx={{
           display: { xs: 'block', sm: 'none' },
           position: 'fixed',
@@ -669,13 +667,29 @@ export default function App() {
           pb: SAFE_BOTTOM
         }}
       >
-        <BottomNavigation showLabels value={activeTab} onChange={(e, tab) => goToTab(tab)} sx={{ bgcolor: 'transparent', height: 64 }}>
+        <BottomNavigation
+          showLabels
+          value={activeTab}
+          onChange={(e, tab) => (tab === 'new' ? openNewTransaction() : goToTab(tab))}
+          sx={{ bgcolor: 'transparent', height: 64 }}
+        >
           <BottomNavigationAction value="overview" label="Visão geral" icon={<DashboardIcon />} />
           <BottomNavigationAction value="transactions" label="Lançamentos" icon={<ReceiptLongIcon />} />
           <BottomNavigationAction
             value="installments"
             label="Parcelas"
-            icon={<Badge badgeContent={installments.length} color="info" max={99}><LayersIcon /></Badge>}
+            icon={<LayersIcon />}
+          />
+          <BottomNavigationAction
+            value="new"
+            label="Novo"
+            aria-label="Novo lançamento"
+            icon={(
+              <Box sx={{ width: 40, height: 28, borderRadius: '4px', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AddIcon />
+              </Box>
+            )}
+            sx={{ color: 'text.primary' }}
           />
         </BottomNavigation>
       </Paper>

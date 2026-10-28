@@ -1,11 +1,17 @@
+/* Cores da primeira pintura, antes do tema do MUI carregar (ver palette.js e themeMode.jsx). */
 body {
-  background-color: #0C1311;
-  color: #ECF2EF;
+  background-color: #111111;
+  color: #F2F2F2;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
   /* Valores e datas com dígitos de largura fixa: os números não "tremem" ao mudar. */
   font-variant-numeric: tabular-nums;
+}
+
+:root[data-theme='light'] body {
+  background-color: #E8EBE6;
+  color: #0E0F0C;
 }
 
 /* Rede de segurança: nenhum elemento deve alargar a página no celular. */
@@ -27,7 +33,6 @@ p, .MuiTypography-body1, .MuiTypography-body2, .MuiAlert-message {
 /* Barras fixas com nome próprio: ficam paradas enquanto o conteúdo desliza. */
 .app-header { view-transition-name: app-header; }
 .app-bottom-nav { view-transition-name: app-bottom-nav; }
-.app-fab { view-transition-name: app-fab; }
 
 ::view-transition-old(root),
 ::view-transition-new(root) {
