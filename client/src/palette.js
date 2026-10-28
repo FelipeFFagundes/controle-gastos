@@ -2,73 +2,74 @@
 // linha de 1px) e a ação principal; números ficam em tinta e levam o sinal no texto (+ / −); o vermelho
 // fica para o que estourou.
 //
-// Escuro (padrão): cinza neutro, sem tom de cor no fundo (o verde no fundo atrapalhava a leitura), com o
-// jade da marca.
-// Claro: cores do Wise (DESIGN.md na raiz): fundo sálvia, cards brancos, tinta quase preta e o verde-limão
-// como cor da ação principal. O limão não tem contraste para texto ou linhas finas sobre branco, então a
-// seleção e os ícones de destaque usam o verde-floresta do Wise (accentInk).
+// Escuro (padrão): cores do Coinbase (design/coinbase.DESIGN.md): fundo quase preto neutro, cards um tom
+// acima e o azul Coinbase como única cor da marca. O azul puro (#0052FF) tem pouco contraste para texto e
+// linhas finas sobre o fundo escuro, então a seleção e os ícones de destaque usam um azul mais claro
+// (accentInk). Verde e vermelho seguem o "sobe / desce" do Coinbase, clareados para o fundo escuro.
+// Claro: cores do Mercury (design/mercury.DESIGN.md): fundo branco-lavanda, cards brancos, tinta
+// violeta-escura e o índigo do Mercury na ação principal e na seleção.
 
 export const palettes = {
   dark: {
-    bg: '#111111',
-    surface: '#181818',
-    surfaceRaised: '#1F1F1F',
+    bg: '#0A0B0D',
+    surface: '#16181C',
+    surfaceRaised: '#1E2025',
     // Linhas sólidas (não transparentes): borda de card e borda de controle.
-    border: '#2A2A2A',
-    control: '#3D3D3D',
-    text: '#F2F2F2',
-    textMuted: '#B4B4B4',
+    border: '#2A2D33',
+    control: '#41454D',
+    text: '#FFFFFF',
+    textMuted: '#A8ACB3',
 
-    brand: '#34C3A2',
-    brandLight: '#67D6BC',
-    brandDark: '#1E9C80',
-    onBrand: '#04221B',
-    accentInk: '#34C3A2',
+    brand: '#0052FF',
+    brandLight: '#3773F5',
+    brandDark: '#003ECC',
+    onBrand: '#FFFFFF',
+    accentInk: '#578BFA',
 
-    // Entradas usam o próprio jade (dois verdes lado a lado pareciam duas coisas diferentes).
-    income: '#34C3A2',
-    incomeLight: '#67D6BC',
-    incomeDark: '#1E9C80',
-    onIncome: '#04221B',
+    income: '#05B169',
+    incomeLight: '#3DCF8E',
+    incomeDark: '#048A52',
+    onIncome: '#0A0B0D',
 
-    expense: '#EB5A68',
-    expenseLight: '#F2808B',
-    expenseDark: '#C93F4E',
-    onExpense: '#2A0A0E',
+    expense: '#F0616D',
+    expenseLight: '#F58A93',
+    expenseDark: '#CF202F',
+    onExpense: '#0A0B0D',
 
-    pending: '#EBB54A',
-    pendingLight: '#F2CB78',
-    pendingDark: '#C9932A',
-    onPending: '#2A1C02',
+    pending: '#F4B000',
+    pendingLight: '#F7C846',
+    pendingDark: '#C98F00',
+    onPending: '#0A0B0D',
 
-    installment: '#8D9CF2',
-    installmentLight: '#AEB9F6',
-    installmentDark: '#6C7CE0',
-    onInstallment: '#0D1238',
+    installment: '#A98BF5',
+    installmentLight: '#C3AEF8',
+    installmentDark: '#8A68E8',
+    onInstallment: '#0A0B0D',
 
-    neutral: '#8A8A8A',
+    neutral: '#7C828A',
     hover: 'rgba(255, 255, 255, 0.04)',
-    selected: 'rgba(255, 255, 255, 0.06)'
+    selected: 'rgba(255, 255, 255, 0.07)'
   },
 
   light: {
-    bg: '#E8EBE6',
+    bg: '#F4F4F9',
     surface: '#FFFFFF',
     surfaceRaised: '#FFFFFF',
-    border: '#D9DED5',
-    control: '#B9BFB4',
-    text: '#0E0F0C',
-    textMuted: '#454745',
+    border: '#E3E3EC',
+    control: '#C3C3CC',
+    text: '#28253B',
+    textMuted: '#554E7B',
 
-    brand: '#9FE870',
-    brandLight: '#CDFFAD',
-    brandDark: '#86D457',
-    onBrand: '#0E0F0C',
-    accentInk: '#163300',
+    brand: '#5266EB',
+    brandLight: '#9CB4E8',
+    brandDark: '#3A4DD4',
+    onBrand: '#FFFFFF',
+    accentInk: '#5266EB',
 
-    income: '#17803A',
-    incomeLight: '#2EAD4B',
-    incomeDark: '#054D28',
+    // O Mercury não define verde nem vermelho; estes passam de 4,5:1 sobre o branco.
+    income: '#18794A',
+    incomeLight: '#2EA56A',
+    incomeDark: '#0F5C37',
     onIncome: '#FFFFFF',
 
     expense: '#D03238',
@@ -77,7 +78,7 @@ export const palettes = {
     onExpense: '#FFFFFF',
 
     pending: '#B86700',
-    pendingLight: '#FFD11A',
+    pendingLight: '#F4B000',
     pendingDark: '#8A4D00',
     onPending: '#FFFFFF',
 
@@ -86,9 +87,9 @@ export const palettes = {
     installmentDark: '#0A5F7E',
     onInstallment: '#FFFFFF',
 
-    neutral: '#6F716D',
-    hover: 'rgba(14, 15, 12, 0.04)',
-    selected: 'rgba(14, 15, 12, 0.06)'
+    neutral: '#70707D',
+    hover: 'rgba(40, 37, 59, 0.04)',
+    selected: 'rgba(40, 37, 59, 0.06)'
   }
 };
 
