@@ -13,7 +13,11 @@ test('migração da paleta troca só as cores padrão antigas', async () => {
     { sql: "INSERT INTO accounts (id, name, type, color) VALUES ('a2', 'Minha', 'bank_account', '#abcdef')", args: [] },
     { sql: 'DELETE FROM schema_version WHERE version >= 3', args: [] },
     // As migrações depois da 3 são refeitas junto.
-    { sql: 'DROP TABLE idempotency_keys', args: [] }
+    { sql: 'DROP TABLE idempotency_keys', args: [] },
+    { sql: 'DROP TABLE forecast_rules', args: [] },
+    { sql: 'DROP TABLE push_subscriptions', args: [] },
+    { sql: 'DROP INDEX transactions_forecast', args: [] },
+    { sql: 'ALTER TABLE transactions DROP COLUMN forecast_id', args: [] }
   ]);
 
   await migrate(db);

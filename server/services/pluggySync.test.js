@@ -129,3 +129,31 @@ test('categoria escolhida para uma loja corrige as outras em "Outros" e vale nas
   const reimported = (await transactionsService.getMonth('2026-11')).transactions.find(t => t.description.startsWith('LOJA'));
   assert.equal(reimported.category, 'Compras & Vestuário');
 });
+
+test('salário que cai no banco cumpre a previsão manual em vez de somar por cima', async () => {
+  await pluggySync.sync({ period: 'all', clearExisting: true });
+  const bank = (await accountsService.list()).find(a => a.pluggyAccountId === 'pa-bank');
+
+  // Mock: "Salário EMPRESA" de R$ 3.000 cai na conta em 01/10. Previsão manual de R$ 3.500 no dia 30.
+  const before = (await transactionsService.getMonth('2026-10')).summary.totalIncome;
+  const [forecast] = await transactionsService.create({
+    description: 'Salário', amount: 3500, type: 'income', accountId: bank.id, date: '2026-10-30'
+  });
+
+  const oct = await transactionsService.getMonth('2026-10');
+  const deposit = oct.transactions.find(t => t.description === 'Salário EMPRESA');
+  assert.equal(deposit.forecastId, forecast.id);
+  assert.equal(deposit.forecastDescription, 'Salário');
+  assert.deepEqual(oct.transactions.find(t => t.id === forecast.id).forecast, { received: 3000, remaining: 500 });
+  assert.equal(oct.summary.totalIncome, before + 500);
+  assert.equal(oct.summary.incomeForecastPending, 500);
+
+  // Sincronizar de novo mantém o vínculo; desligar à mão não é desfeito pelo próximo sync.
+  await pluggySync.sync({ period: 'all' });
+  assert.equal((await transactionsService.getMonth('2026-10')).transactions.find(t => t.id === deposit.id).forecastId, forecast.id);
+  await transactionsService.setForecast(deposit.id, null);
+  await pluggySync.sync({ period: 'all' });
+  const after = await transactionsService.getMonth('2026-10');
+  assert.equal(after.transactions.find(t => t.id === deposit.id).forecastId, 'none');
+  assert.equal(after.summary.totalIncome, before + 3500);
+});

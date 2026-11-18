@@ -26,5 +26,10 @@ export const config = {
   // Sincronização automática no servidor local, de X em X horas (0 = desligada).
   get syncIntervalHours() { return Math.max(0, Number(process.env.SYNC_INTERVAL_HOURS) || 0); },
   // Protege a rota chamada pelo Cron da Vercel.
-  get cronSecret() { return (process.env.CRON_SECRET || '').trim(); }
+  get cronSecret() { return (process.env.CRON_SECRET || '').trim(); },
+  // Notificações no celular (Web Push). Gere o par com: npx web-push generate-vapid-keys
+  get vapidPublicKey() { return (process.env.VAPID_PUBLIC_KEY || '').trim(); },
+  get vapidPrivateKey() { return (process.env.VAPID_PRIVATE_KEY || '').trim(); },
+  // Contato exigido pelos serviços de push (mailto: ou https:).
+  get vapidSubject() { return (process.env.VAPID_SUBJECT || '').trim() || 'mailto:admin@example.com'; }
 };

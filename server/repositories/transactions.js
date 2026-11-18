@@ -29,8 +29,20 @@ function toTransaction(row) {
       ? { current: Number(row.installment_current), total: Number(row.installment_total) }
       : null,
     installmentGroup: row.installment_group,
-    pluggyId: row.pluggy_id
+    pluggyId: row.pluggy_id,
+    forecastId: row.forecast_id ?? null
   };
+}
+
+// Vínculos depósito -> previsão: [{ id, forecastId }]. forecastId null limpa, 'none' desliga de propósito.
+export function setForecastStatements(links) {
+  return links.map(l => ({ sql: 'UPDATE transactions SET forecast_id = ? WHERE id = ?', args: [l.forecastId, l.id] }));
+}
+
+export async function setForecastLinks(links) {
+  if (!links.length) return;
+  const db = await getDb();
+  await db.batch(setForecastStatements(links), 'write');
 }
 
 export async function listByMonth(month) {
@@ -175,7 +187,11 @@ export async function setPaid(id, paid) {
 
 export async function remove(tx) {
   const db = await getDb();
-  const statements = [{ sql: 'DELETE FROM transactions WHERE id = ?', args: [tx.id] }];
+  const statements = [
+    // Previsão apagada: os depósitos ligados a ela voltam a ficar soltos (e podem ser religados).
+    { sql: 'UPDATE transactions SET forecast_id = NULL WHERE forecast_id = ?', args: [tx.id] },
+    { sql: 'DELETE FROM transactions WHERE id = ?', args: [tx.id] }
+  ];
   if (tx.pluggyId) {
     statements.push({ sql: 'INSERT INTO pluggy_ignored (pluggy_id) VALUES (?) ON CONFLICT DO NOTHING', args: [tx.pluggyId] });
   }

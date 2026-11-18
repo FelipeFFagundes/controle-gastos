@@ -23,7 +23,8 @@
   "dependencies": {
     "@libsql/client": "^0.15.15",
     "express": "^5.0.0",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "web-push": "^4.0.0"
   },
   "engines": {
     "node": ">=22"

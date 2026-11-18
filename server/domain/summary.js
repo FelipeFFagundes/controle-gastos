@@ -1,3 +1,5 @@
+import { incomeContributionCents, isForecast, receivedByForecast } from './forecast.js';
+
 // Totais do mês. Valores são somados em centavos para evitar erros de ponto flutuante.
 //
 // Tipos de lançamento:
@@ -7,10 +9,15 @@
 //              resgate automático, Pix para si mesmo. Aparece na lista mas NÃO entra
 //              nos totais, senão a fatura paga pela conta corrente seria contada duas
 //              vezes (a compra no cartão + o pagamento da fatura).
+//
+// Entradas previstas à mão (ex.: salário do fim do mês) contam só pelo que ainda falta receber:
+// os depósitos do banco ligados a elas já entram por conta própria (ver forecast.js).
 export function computeMonthSummary(transactions, accounts, surplusTarget = null) {
   const accountTypes = new Map(accounts.map(a => [a.id, a.type]));
+  const received = receivedByForecast(transactions);
 
   let income = 0;
+  let forecastPending = 0;
   let expense = 0;
   let paid = 0;
   let pending = 0;
@@ -22,7 +29,9 @@ export function computeMonthSummary(transactions, accounts, surplusTarget = null
   for (const t of transactions) {
     const cents = toCents(t.amount);
     if (t.type === 'income') {
-      income += cents;
+      const contribution = incomeContributionCents(t, received);
+      income += contribution;
+      if (isForecast(t)) forecastPending += contribution;
       continue;
     }
     if (t.type === 'transfer') {
@@ -40,6 +49,8 @@ export function computeMonthSummary(transactions, accounts, surplusTarget = null
 
   return {
     totalIncome: fromCents(income),
+    // Parte das entradas que ainda é só previsão (não caiu no banco).
+    incomeForecastPending: fromCents(forecastPending),
     totalExpense: fromCents(expense),
     netBalance: fromCents(income - expense),
     totalPaid: fromCents(paid),

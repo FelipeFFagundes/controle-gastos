@@ -24,7 +24,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import { addMonths, formatMonthTitle } from '../months';
-import { formatAmountInput, parseAmount } from '../format';
+import { formatAmountInput, formatBRL, parseAmount } from '../format';
 
 // Hoje, se o mês exibido for o atual; senão, dia 15 do mês exibido.
 function defaultDate(month) {
@@ -48,7 +48,9 @@ export function TransactionModal({
   accounts = [],
   currentMonth,
   editTransaction = null,
-  saving = false
+  saving = false,
+  // Entradas lançadas à mão no mês: as previsões que um depósito do banco pode cumprir.
+  forecasts = []
 }) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -66,6 +68,7 @@ export function TransactionModal({
   const [totalInstallments, setTotalInstallments] = useState('2');
   const [generateFutureMonths, setGenerateFutureMonths] = useState(true);
   const [errors, setErrors] = useState({});
+  const [forecastId, setForecastId] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -83,6 +86,7 @@ export function TransactionModal({
     setCurrentInstallment(String(tx?.installment?.current || 1));
     setTotalInstallments(String(tx?.installment?.total || 2));
     setGenerateFutureMonths(!tx);
+    setForecastId(tx?.forecastId && tx.forecastId !== 'none' ? tx.forecastId : '');
     setErrors({});
   }, [editTransaction, isOpen, currentMonth, categories, accounts]);
 
@@ -92,6 +96,12 @@ export function TransactionModal({
   const baseMonth = (date || defaultDate(currentMonth)).slice(0, 7);
   const monthOptions = Array.from({ length: 6 }, (_, i) => addMonths(baseMonth, i - 1));
   if (month && !monthOptions.includes(month)) monthOptions.push(month);
+
+  // Depósito que veio do banco: pode cumprir uma entrada prevista (ex.: parte do salário).
+  const isDeposit = Boolean(editTransaction?.pluggyId) && type === 'income';
+  const forecastOptions = forecasts.filter(f => f.month === editTransaction?.month);
+  const isManualIncome = type === 'income' && !editTransaction?.pluggyId;
+  const originalForecastId = editTransaction?.forecastId && editTransaction.forecastId !== 'none' ? editTransaction.forecastId : '';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -116,7 +126,7 @@ export function TransactionModal({
       currentInstallment: parseInt(currentInstallment, 10),
       totalInstallments: parseInt(totalInstallments, 10),
       generateFutureMonths: type === 'expense' && isInstallment && !editTransaction ? generateFutureMonths : false
-    });
+    }, isDeposit && forecastId !== originalForecastId ? { forecastId: forecastId || null } : undefined);
   };
 
   const accent = TYPE_OPTIONS.find(o => o.value === type)?.color || 'primary';
@@ -239,6 +249,32 @@ export function TransactionModal({
                 </Box>
               )}
             </Box>
+          )}
+
+          {isDeposit && forecastOptions.length > 0 && (
+            <FormControl fullWidth>
+              <InputLabel shrink>Faz parte de</InputLabel>
+              <Select
+                value={forecastId}
+                label="Faz parte de"
+                displayEmpty
+                notched
+                onChange={(e) => setForecastId(e.target.value)}
+                renderValue={(v) => forecastOptions.find(f => f.id === v)?.description || 'Nenhuma previsão (soma à parte)'}
+              >
+                <MenuItem value="">Nenhuma previsão (soma à parte)</MenuItem>
+                {forecastOptions.map(f => <MenuItem key={f.id} value={f.id}>{f.description} · {formatBRL(f.amount)}</MenuItem>)}
+              </Select>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75 }}>
+                O valor desconta da previsão em vez de somar por cima. Os próximos depósitos desta origem vão para ela sozinhos.
+              </Typography>
+            </FormControl>
+          )}
+
+          {isManualIncome && (
+            <Typography variant="caption" color="text.secondary" component="div" sx={{ px: 0.5 }}>
+              Entrada prevista: o que cair no banco com "salário" no nome (ou que você ligar a ela) é descontado deste valor, sem contar duas vezes.
+            </Typography>
           )}
 
           <FormControlLabel

@@ -29,6 +29,14 @@ Busca os lançamentos dos últimos 7 dias na Pluggy sem precisar abrir o app. At
 - **Local:** defina `SYNC_INTERVAL_HOURS` no `.env` (ex.: `6`). Roda 1 minuto depois de o servidor subir e depois de X em X horas, enquanto ele estiver ligado.
 - **Vercel:** o `vercel.json` agenda `/api/cron/sync` todo dia às 07:00 (horário de Brasília). Cadastre `CRON_SECRET` nas variáveis do projeto. No plano Hobby a Vercel só permite 1 execução por dia; no Pro dá para usar, por exemplo, `0 */6 * * *` (a cada 6 horas).
 
+### Notificação no celular
+Depois de cada sincronização automática, o celular recebe "Transações atualizadas" com quanto ainda dá para gastar no mês (o mesmo "Disponível" da tela) e quantos lançamentos chegaram. Usa Web Push, padrão do navegador: chega mesmo com o app fechado.
+1. Gere as chaves uma vez: `npx web-push generate-vapid-keys`.
+2. Cadastre `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` (e, se quiser, `VAPID_SUBJECT`) no `.env` ou na Vercel.
+3. No celular, abra o app instalado e toque em **⋮ > Ativar notificações**. **⋮ > Testar notificação** manda uma na hora.
+
+No iPhone só funciona com o app adicionado à Tela de Início (iOS 16.4+). Localmente, o celular precisa acessar o servidor por HTTPS, então na prática use a Vercel.
+
 ## Migrando dados da versão antiga
 A versão anterior guardava tudo num JSON (`server/data/database.json` ou Upstash). Para trazer esses dados para o banco novo:
 ```bash

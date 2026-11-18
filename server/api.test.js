@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { open, setDb } from './db/client.js';
 import { createApp } from './app.js';
 import { resetFailures } from './services/auth.js';
+import { setSender } from './services/notifications.js';
 
 let server;
 let baseUrl;
@@ -151,4 +152,35 @@ test('reenvio com a mesma Idempotency-Key não duplica o lançamento', async () 
   // Erro de validação também é guardado: o reenvio recebe o mesmo 400.
   assert.equal((await api('/transactions', { method: 'POST', body: {}, key: 'teste-idem-0002' })).status, 400);
   assert.equal((await api('/transactions', { method: 'POST', body: {}, key: 'teste-idem-0002' })).replayed, true);
+});
+
+test('notificações: inscrição, envio do resumo e limpeza de aparelho descartado', async () => {
+  delete process.env.VAPID_PUBLIC_KEY;
+  delete process.env.VAPID_PRIVATE_KEY;
+  assert.equal((await api('/push/public-key')).body.configured, false);
+
+  process.env.VAPID_PUBLIC_KEY = 'chave-publica-teste';
+  process.env.VAPID_PRIVATE_KEY = 'chave-privada-teste';
+  assert.equal((await api('/push/public-key')).body.publicKey, 'chave-publica-teste');
+
+  assert.equal((await api('/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'http://x' } } })).status, 400);
+  const subscription = { endpoint: 'https://push.example/aparelho-1', keys: { p256dh: 'p', auth: 'a' } };
+  assert.equal((await api('/push/subscribe', { method: 'POST', body: { subscription } })).status, 201);
+
+  const sent = [];
+  setSender(async (sub, payload) => { sent.push({ sub, payload: JSON.parse(payload) }); });
+  const first = await api('/push/test', { method: 'POST' });
+  assert.deepEqual(first.body, { sent: 1, failed: 0, skipped: false });
+  assert.equal(sent[0].sub.endpoint, subscription.endpoint);
+  assert.equal(sent[0].payload.title, 'Transações atualizadas');
+  assert.match(sent[0].payload.body, /para gastar em|do limite de/);
+
+  // Aparelho que desinstalou o app: o servidor de push responde 410 e a inscrição sai.
+  setSender(async () => { throw Object.assign(new Error('Gone'), { statusCode: 410 }); });
+  assert.equal((await api('/push/test', { method: 'POST' })).body.failed, 1);
+  assert.equal((await api('/push/test', { method: 'POST' })).body.sent, 0);
+  assert.equal(sent.length, 1);
+
+  delete process.env.VAPID_PUBLIC_KEY;
+  delete process.env.VAPID_PRIVATE_KEY;
 });

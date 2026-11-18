@@ -11,6 +11,7 @@ import { merchantKey } from '../domain/merchant.js';
 import { daysAgo } from '../domain/months.js';
 import { classifyPluggyTransaction, defaultAccountFromPluggy, isCreditAccount } from '../domain/pluggyMapping.js';
 import { badRequest, HttpError } from './errors.js';
+import { reconcileForecasts } from './transactions.js';
 
 const PERIOD_DAYS = { '24h': 2, '7d': 8, '30d': 35 };
 const ITEM_POLL_ATTEMPTS = 4;
@@ -109,6 +110,7 @@ async function runSync({ period = 'all', clearExisting = false, itemIds = [] } =
   const ignored = await transactionsRepo.listIgnoredPluggyIds();
   const categoryRules = await categoryRulesRepo.listAll();
   const seen = new Set();
+  const incomeMonths = new Set();
   const statements = [];
   let importedCount = 0;
   let updatedCount = 0;
@@ -125,6 +127,7 @@ async function runSync({ period = 'all', clearExisting = false, itemIds = [] } =
       seen.add(ptx.id);
       const incoming = classifyPluggyTransaction(ptx, { isCredit });
       const month = billingMonth(account, incoming.date);
+      if (incoming.type === 'income') incomeMonths.add(month);
       const group = incoming.installment
         ? installmentGroupKey(incoming.description, account.id, incoming.installment.total)
         : null;
@@ -162,6 +165,9 @@ async function runSync({ period = 'all', clearExisting = false, itemIds = [] } =
     const db = await getDb();
     await db.batch(statements, 'write');
   }
+
+  // Depósitos de salário (e de origens já ensinadas) passam a cumprir a previsão do mês.
+  await reconcileForecasts([...incomeMonths]);
 
   let message = `Sincronização concluída: ${importedCount} lançamento(s) novo(s) e ${updatedCount} atualizado(s) em ${fetched.length} conta(s)/cartão(ões).`;
   if (warnings.length) message += ` Atenção: ${warnings.join(' ')}`;

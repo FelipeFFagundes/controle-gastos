@@ -39,6 +39,9 @@ import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
+import NotificationsOffOutlinedIcon from '@mui/icons-material/NotificationsOffOutlined';
+import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 
 import { AccountBreakdown, SummaryCards } from './components/SummaryCards';
 import { TransactionList } from './components/TransactionList';
@@ -58,6 +61,7 @@ import { withViewTransition } from './viewTransition';
 import { useShortcuts } from './shortcuts';
 import { useThemeMode } from './themeMode.jsx';
 import { useHideValues } from './hideValues';
+import { usePushNotifications } from './pushNotifications';
 import { loadPluggyConnect } from './pluggyWidget';
 import {
   monthQueryOptions,
@@ -71,6 +75,7 @@ import {
   useResetData,
   useSaveAccount,
   useSaveTransaction,
+  useSetForecast,
   useSetPaid,
   useSetSurplus
 } from './queries';
@@ -204,6 +209,7 @@ export default function App() {
     clearPersistedData(); // os dados guardados no aparelho saem junto com a sessão
   });
   const enabled = auth.state === 'open';
+  const push = usePushNotifications(enabled);
 
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth);
   const [activeTab, setActiveTab] = useState('overview');
@@ -222,6 +228,7 @@ export default function App() {
   const showToast = (message, severity = 'success', action = null, options = {}) =>
     setToast({ message, severity, action, undoId: action?.undoId, persist: options.persist, key: Date.now() });
   const showError = (err) => showToast(err?.message || 'Algo deu errado.', 'error');
+  const runPushAction = (action) => action().then(message => showToast(message), showError);
 
   // Dados: o servidor é a fonte única de verdade; o cache guardado aparece enquanto atualiza.
   const monthsQuery = useMonths(enabled);
@@ -233,6 +240,7 @@ export default function App() {
   const saveTransaction = useSaveTransaction(currentMonth);
   const deleteTransaction = useDeleteTransaction();
   const setPaid = useSetPaid(currentMonth);
+  const setForecast = useSetForecast();
   const setSurplus = useSetSurplus(currentMonth);
   const saveAccount = useSaveAccount();
   const deleteAccount = useDeleteAccount();
@@ -322,12 +330,24 @@ export default function App() {
   };
 
   // Otimista: o modal fecha e a lista já mostra a mudança; se o servidor recusar, a tela volta e avisa.
-  const handleSaveTransaction = (formData) => {
+  // `extra.forecastId`: o usuário mudou de qual previsão este depósito faz parte (null = nenhuma).
+  const handleSaveTransaction = (formData, extra) => {
     const id = editingTransaction?.id;
     const categoryChanged = id && formData.category !== editingTransaction.category;
     closeTransactionModal();
     saveTransaction.mutate({ id, data: formData }, {
-      onSuccess: (result) => showToast((categoryChanged && recategorizedMessage(result, formData.category)) || (id ? 'Lançamento atualizado.' : 'Lançamento adicionado.')),
+      onSuccess: (result) => {
+        if (id && extra && 'forecastId' in extra) {
+          setForecast.mutate({ id, forecastId: extra.forecastId }, {
+            onSuccess: () => showToast(extra.forecastId
+              ? 'Ligado à previsão. Os próximos depósitos desta origem vão para ela sozinhos.'
+              : 'Desligado da previsão: este depósito soma à parte.'),
+            onError: showError
+          });
+          return;
+        }
+        showToast((categoryChanged && recategorizedMessage(result, formData.category)) || (id ? 'Lançamento atualizado.' : 'Lançamento adicionado.'));
+      },
       onError: (err) => showError({ message: `Não foi salvo: ${err.message}` })
     });
   };
@@ -577,6 +597,10 @@ export default function App() {
           <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
             {menuItem(<CreditCardIcon fontSize="small" />, 'Cartões e contas', () => setIsAccountsModalOpen(true))}
             {menuItem(<SyncIcon fontSize="small" />, 'Sincronizar bancos', () => setIsPluggyModalOpen(true))}
+            {push.status === 'on'
+              ? menuItem(<NotificationsOffOutlinedIcon fontSize="small" />, 'Desativar notificações', () => runPushAction(push.disable))
+              : menuItem(<NotificationsActiveOutlinedIcon fontSize="small" />, 'Ativar notificações', () => runPushAction(push.enable))}
+            {push.status === 'on' && menuItem(<SendOutlinedIcon fontSize="small" />, 'Testar notificação', () => runPushAction(push.test))}
             {auth.pinRequired && menuItem(<LockOutlinedIcon fontSize="small" />, 'Bloquear app', handleLockApp)}
             {themeMode.mode === 'dark'
               ? menuItem(<LightModeOutlinedIcon fontSize="small" />, 'Tema claro', themeMode.toggleMode)
@@ -719,6 +743,7 @@ export default function App() {
         accounts={accounts}
         currentMonth={currentMonth}
         editTransaction={editingTransaction}
+        forecasts={transactions.filter(t => t.type === 'income' && !t.pluggyId)}
       />
 
       <CategoryPicker

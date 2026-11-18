@@ -3,6 +3,7 @@
 //   Vercel -> Cron da Vercel chama GET /api/cron/sync (ver vercel.json).
 import { config } from '../config.js';
 import * as pluggySync from '../services/pluggySync.js';
+import * as notifications from '../services/notifications.js';
 
 // Últimos dias relidos a cada rodada: cobre compras que mudam de "pendente" para "lançada".
 export const AUTO_SYNC_PERIOD = '7d';
@@ -16,6 +17,13 @@ export async function runAutoSync(trigger) {
   try {
     const result = await pluggySync.sync({ period: AUTO_SYNC_PERIOD });
     console.log(`[Auto Sync] (${trigger}) ${result.message} [${Math.round((Date.now() - started) / 1000)}s]`);
+    // Avisa o celular. Esperado aqui porque na Vercel a função termina junto com a resposta.
+    // Falha no aviso não desfaz nem marca o sync como falho.
+    try {
+      result.notification = await notifications.notifySyncResult(result);
+    } catch (err) {
+      console.warn(`[Auto Sync] notificação falhou: ${err.message}`);
+    }
     return result;
   } catch (err) {
     console.warn(`[Auto Sync] (${trigger}) falhou: ${err.message}`);
