@@ -99,6 +99,9 @@ export const useResetData = () =>
 export const usePluggySync = () => useInvalidatingMutation((options) => api.pluggySync(options), [keys.accounts, keys.pluggy]);
 
 // Pago/pendente: define o estado (repetir o pedido não desfaz), já mostrado na tela.
+// Liga um depósito do banco a uma entrada prevista (ou desliga, com forecastId null).
+export const useSetForecast = () => useInvalidatingMutation(({ id, forecastId }) => api.setForecast(id, forecastId));
+
 export function useSetPaid(month) {
   const queryClient = useQueryClient();
   return useMutation({

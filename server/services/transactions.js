@@ -3,11 +3,13 @@ import * as transactionsRepo from '../repositories/transactions.js';
 import * as accountsRepo from '../repositories/accounts.js';
 import * as settingsRepo from '../repositories/settings.js';
 import * as categoryRulesRepo from '../repositories/categoryRules.js';
+import * as forecastRulesRepo from '../repositories/forecastRules.js';
 import { billingMonth } from '../domain/billing.js';
 import { buildInstallmentSeries, isValidInstallment, summarizeInstallments } from '../domain/installments.js';
 import { currentMonth, isValidDate, isValidMonth } from '../domain/months.js';
 import { computeMonthSummary } from '../domain/summary.js';
 import { merchantKey } from '../domain/merchant.js';
+import { annotateForecasts, isForecast, NOT_LINKED, proposeLinks } from '../domain/forecast.js';
 import { badRequest, notFound } from './errors.js';
 
 const TYPES = ['expense', 'income', 'transfer'];
@@ -22,7 +24,7 @@ export async function getMonth(month) {
   ]);
   return {
     month,
-    transactions,
+    transactions: annotateForecasts(transactions),
     customSurplusTarget: surplusTarget,
     summary: computeMonthSummary(transactions, accounts, surplusTarget)
   };
@@ -88,6 +90,7 @@ export async function create(input) {
   }
 
   await transactionsRepo.insertMany(records);
+  if (data.type === 'income') await reconcileForecasts([...new Set(records.map(r => r.month))]);
   return Promise.all(records.map(r => transactionsRepo.getById(r.id)));
 }
 
@@ -144,6 +147,13 @@ export async function update(id, input) {
   const recategorized = updated.type === 'expense' && updated.category !== existing.category
     ? await learnCategory(updated)
     : 0;
+  if (existing.type === 'income' || updated.type === 'income') {
+    // Mudou de mês, valor ou deixou de ser entrada: os vínculos com previsões são refeitos.
+    if (existing.forecastId && (updated.type !== 'income' || updated.month !== existing.month)) {
+      await transactionsRepo.setForecastLinks([{ id, forecastId: null }]);
+    }
+    await reconcileForecasts([...new Set([existing.month, updated.month])]);
+  }
   return { transaction: await transactionsRepo.getById(id), recategorized };
 }
 
@@ -159,6 +169,41 @@ async function learnCategory(tx) {
     .map(t => t.id);
   await transactionsRepo.setCategory(sameMerchant, tx.category);
   return sameMerchant.length;
+}
+
+// Liga os depósitos soltos dos meses às previsões (salário etc.). Chamado após sync e edições.
+export async function reconcileForecasts(months) {
+  const rules = await forecastRulesRepo.listAll();
+  for (const month of months) {
+    const links = proposeLinks(await transactionsRepo.listByMonth(month), rules);
+    await transactionsRepo.setForecastLinks(links);
+  }
+}
+
+// O usuário diz de qual previsão um depósito faz parte (ou que não faz parte de nenhuma).
+// A escolha vira regra: os próximos depósitos da mesma origem vão para a previsão de mesmo nome.
+export async function setForecast(id, forecastId) {
+  const deposit = await transactionsRepo.getById(id);
+  if (!deposit) throw notFound('Lançamento não encontrado.');
+  if (deposit.type !== 'income' || !deposit.pluggyId) {
+    throw badRequest('Só entradas que vieram do banco podem ser ligadas a uma previsão.');
+  }
+  const key = merchantKey(deposit.description);
+
+  if (!forecastId) {
+    await transactionsRepo.setForecastLinks([{ id, forecastId: NOT_LINKED }]);
+    if (key) await forecastRulesRepo.remove(key);
+    return transactionsRepo.getById(id);
+  }
+
+  const forecast = await transactionsRepo.getById(forecastId);
+  if (!forecast || !isForecast(forecast)) throw badRequest('Escolha uma entrada lançada à mão (a previsão).');
+  if (forecast.month !== deposit.month) throw badRequest('A previsão precisa ser do mesmo mês do depósito.');
+
+  await transactionsRepo.setForecastLinks([{ id, forecastId }]);
+  const forecastKey = merchantKey(forecast.description);
+  if (key && forecastKey) await forecastRulesRepo.upsert(key, forecastKey);
+  return transactionsRepo.getById(id);
 }
 
 export async function setPaid(id, paid) {

@@ -124,6 +124,7 @@ export const api = {
   createTransaction: (data) => request('/transactions', { method: 'POST', body: data }),
   updateTransaction: (id, data) => request(`/transactions/${id}`, { method: 'PUT', body: data }),
   setPaid: (id, paid) => request(`/transactions/${id}/paid`, { method: 'PATCH', body: { paid } }),
+  setForecast: (id, forecastId) => request(`/transactions/${id}/forecast`, { method: 'PATCH', body: { forecastId } }),
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 
   createAccount: (data) => request('/accounts', { method: 'POST', body: data }),
@@ -133,6 +134,11 @@ export const api = {
 
   clearAll: () => request('/admin/clear', { method: 'POST' }),
   resetSeed: () => request('/admin/reset-seed', { method: 'POST' }),
+
+  pushPublicKey: () => request('/push/public-key'),
+  pushSubscribe: (subscription) => request('/push/subscribe', { method: 'POST', body: { subscription } }),
+  pushUnsubscribe: (endpoint) => request('/push/unsubscribe', { method: 'POST', body: { endpoint } }),
+  pushTest: () => request('/push/test', { method: 'POST' }),
 
   pluggyStatus: () => request('/pluggy/status'),
   pluggyConnectToken: (itemId) => request('/pluggy/connect-token', { method: 'POST', body: { itemId } }),

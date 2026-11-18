@@ -74,13 +74,14 @@ function SpendingTrack({ income, expense, target }) {
 }
 
 // Uma célula da faixa de totais: rótulo em cinza em cima, valor em branco embaixo.
-function Stat({ label, value, signed = false }) {
+function Stat({ label, value, signed = false, hint }) {
   return (
     <Box sx={{ bgcolor: 'background.paper', px: { xs: 2, sm: 2.5 }, py: 2, minWidth: 0 }}>
       <Typography variant="body2" color="text.secondary" noWrap>{label}</Typography>
       <Typography sx={{ fontFamily: figures, fontSize: { xs: '1.125rem', sm: '1.375rem' }, fontWeight: figuresWeight, mt: 0.5, color: value === 0 ? 'text.secondary' : 'text.primary' }} noWrap>
         {signed ? formatSignedBRL(value) : formatBRL(value)}
       </Typography>
+      {hint && <Typography variant="caption" color="text.secondary" component="div" noWrap>{hint}</Typography>}
     </Box>
   );
 }
@@ -99,7 +100,8 @@ export function SummaryCards({ summary, onUpdateCustomSurplus }) {
     creditCardExpenses = 0,
     fixedExpenses = 0,
     availableToSpend = 0,
-    customSurplusTarget = null
+    customSurplusTarget = null,
+    incomeForecastPending = 0
   } = summary;
 
   // Sem meta definida, o servidor calcula o disponível com meta zero (entradas − saídas).
@@ -178,7 +180,12 @@ export function SummaryCards({ summary, onUpdateCustomSurplus }) {
         aria-label="Totais do mês"
         sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: '1px', bgcolor: 'divider', overflow: 'hidden' }}
       >
-        <Stat label="Entradas" value={totalIncome} signed />
+        <Stat
+          label="Entradas"
+          value={totalIncome}
+          signed
+          hint={incomeForecastPending > 0 ? `${formatBRL(incomeForecastPending)} ainda previsto` : null}
+        />
         <Stat label="Saídas" value={-totalExpense} signed />
         <Stat label="Faturas de cartão" value={creditCardExpenses} />
         <Stat label="Conta e Pix" value={fixedExpenses} />

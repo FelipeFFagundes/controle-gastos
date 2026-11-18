@@ -5,6 +5,7 @@ import * as auth from './services/auth.js';
 import * as transactions from './services/transactions.js';
 import * as accounts from './services/accounts.js';
 import * as pluggySync from './services/pluggySync.js';
+import * as notifications from './services/notifications.js';
 import * as settingsRepo from './repositories/settings.js';
 import { importLegacyData } from './services/legacyImport.js';
 import { initialData } from './seed.js';
@@ -76,6 +77,11 @@ export function apiRouter() {
     res.json({ transaction: await transactions.setPaid(req.params.id, req.body?.paid) });
   });
 
+  // Liga um depósito do banco a uma entrada prevista (ex.: parte do salário). forecastId null = nenhuma.
+  router.patch('/transactions/:id/forecast', async (req, res) => {
+    res.json({ transaction: await transactions.setForecast(req.params.id, req.body?.forecastId ?? null) });
+  });
+
   router.delete('/transactions/:id', async (req, res) => {
     await transactions.remove(req.params.id);
     res.status(204).end();
@@ -130,6 +136,26 @@ export function apiRouter() {
       clearExisting: Boolean(req.body?.clearExisting),
       itemIds: req.body?.itemIds
     }));
+  });
+
+  // --- Notificações no celular (Web Push) ---
+  router.get('/push/public-key', (req, res) => {
+    res.json({ configured: notifications.isConfigured(), publicKey: notifications.publicKey() });
+  });
+
+  router.post('/push/subscribe', async (req, res) => {
+    await notifications.subscribe(req.body?.subscription);
+    res.status(201).json({ subscribed: true });
+  });
+
+  router.post('/push/unsubscribe', async (req, res) => {
+    await notifications.unsubscribe(req.body?.endpoint);
+    res.json({ subscribed: false });
+  });
+
+  // Manda agora a mesma notificação do sync automático, sem sincronizar (para conferir no celular).
+  router.post('/push/test', async (req, res) => {
+    res.json(await notifications.notifySyncResult({ importedCount: 0, updatedCount: 0 }));
   });
 
   router.use((req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));

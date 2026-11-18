@@ -84,6 +84,26 @@ const MIGRATIONS = [
       body TEXT,
       created_at TEXT NOT NULL
     )`
+  ],
+  [
+    // Depósito do banco que cumpre uma entrada prevista à mão (ver domain/forecast.js).
+    // 'none' = desligado de propósito pelo usuário.
+    'ALTER TABLE transactions ADD COLUMN forecast_id TEXT',
+    'CREATE INDEX transactions_forecast ON transactions (forecast_id)',
+    // Origem do depósito (merchantKey) -> nome da previsão que ela cumpre, aprendido quando o usuário liga os dois.
+    `CREATE TABLE forecast_rules (
+      merchant_key TEXT PRIMARY KEY,
+      forecast_key TEXT NOT NULL
+    )`
+  ],
+  [
+    // Aparelhos que ativaram as notificações (Web Push). endpoint = endereço único do aparelho.
+    `CREATE TABLE push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
   ]
 ];
 

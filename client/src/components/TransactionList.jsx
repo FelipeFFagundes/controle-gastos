@@ -51,11 +51,52 @@ const filterChipSx = (selected) => ({
 const INSTALLMENT_SUFFIX = /\s*-?\s*(?:parcela\s*)?\d{1,2}\s*\/\s*\d{1,2}\s*$/i;
 const displayDescription = (tx) => (tx.installment ? tx.description.replace(INSTALLMENT_SUFFIX, '') || tx.description : tx.description);
 
+// Entrada lançada à mão = previsão (ex.: salário do fim do mês). Os depósitos do banco ligados a ela
+// (servidor: domain/forecast.js) descontam o que falta, e ela só conta pelo restante.
+const isForecastTx = (tx) => tx.type === 'income' && !tx.pluggyId;
+const incomeContribution = (tx) => (tx.forecast ? tx.forecast.remaining : tx.amount);
+
 const secondaryLine = (tx) => {
+  if (tx.pairedWith) return 'Transferência entre suas contas';
+  if (isForecastTx(tx)) {
+    if (!tx.forecast) return `Previsto · ${tx.account}`;
+    return tx.forecast.remaining > 0
+      ? `Recebido ${formatBRL(tx.forecast.received)} · falta ${formatBRL(tx.forecast.remaining)}`
+      : `Recebido ${formatBRL(tx.forecast.received)} ✓`;
+  }
   if (tx.type === 'income') return tx.account;
   if (tx.type === 'transfer') return `Transferência · ${tx.account}`;
   return `${tx.category} · ${tx.account}`;
 };
+
+// Transferência entre contas próprias aparece duas vezes: saída numa conta e entrada na outra
+// (ex.: Pix do Itaú para o Nubank). Junta as duas pontas numa linha só "Itaú → Nubank".
+const OUT_RE = /envi|pagamento|pgto|aplic|\bapl\b|d[eé]bito|saque/i;
+const IN_RE = /receb|resgate|\bres\b|cr[eé]dito|dep[oó]sito/i;
+const direction = (tx) => (OUT_RE.test(tx.description) ? 'out' : IN_RE.test(tx.description) ? 'in' : null);
+const daysApart = (a, b) => Math.abs(new Date(a) - new Date(b)) / 864e5;
+
+// Mantém a ordem recebida: a linha juntada ocupa o lugar da saída, e a entrada some.
+export function pairTransfers(transfers) {
+  const partnerOf = new Map();
+  const consumed = new Set();
+  for (const out of transfers) {
+    if (out.type !== 'transfer' || direction(out) !== 'out') continue;
+    const match = transfers.find(t =>
+      t.type === 'transfer' && !consumed.has(t.id) && t.id !== out.id && t.accountId !== out.accountId
+      && direction(t) === 'in' && Math.abs(t.amount - out.amount) <= 0.02 && daysApart(t.date, out.date) <= 1
+    );
+    if (!match) continue;
+    partnerOf.set(out.id, match);
+    consumed.add(match.id);
+  }
+  return transfers
+    .filter(t => !consumed.has(t.id))
+    .map(t => {
+      const match = partnerOf.get(t.id);
+      return match ? { ...t, description: `${t.account} → ${match.account}`, pairedWith: match } : t;
+    });
+}
 
 // Linha que pode ser arrastada no celular: para a direita marca como pago, para a esquerda exclui.
 // Posição atual da linha, inclusive no meio da animação de volta.
@@ -182,7 +223,8 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
   }
 
   return (
-    <SwipeRow paid={tx.paid} onSwipeRight={() => onTogglePaid(tx)} onSwipeLeft={() => onDelete(tx)}>
+    // Transferência pareada são dois lançamentos: excluir pela linha apagaria só uma ponta.
+    <SwipeRow paid={tx.paid} onSwipeRight={() => onTogglePaid(tx)} onSwipeLeft={() => { if (!tx.pairedWith) onDelete(tx); }}>
       <Box
         role="button"
         tabIndex={0}
@@ -236,6 +278,11 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
             {tx.installment && (
               <Chip label={`${tx.installment.current}/${tx.installment.total}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem', color: 'text.secondary' }} />
             )}
+            {tx.forecastDescription && (
+              <Tooltip title="Este depósito cumpre a entrada prevista e não soma por cima dela">
+                <Chip label={`parte de: ${tx.forecastDescription}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem', color: 'text.secondary' }} />
+              </Tooltip>
+            )}
             {billedInOtherMonth && (
               <Tooltip title="Compra feita em outro mês, cobrada na fatura deste mês">
                 <Chip label={`fatura ${formatMonthShort(tx.month)}`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem', color: 'text.secondary' }} />
@@ -244,7 +291,16 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
           </Box>
         </Box>
 
-        <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: amountColor(tx.type), whiteSpace: 'nowrap' }}>
+        <Typography
+          sx={{
+            fontWeight: 700,
+            fontSize: '0.95rem',
+            color: amountColor(tx.type),
+            whiteSpace: 'nowrap',
+            // Previsão já toda recebida: o valor fica riscado (quem conta agora são os depósitos).
+            ...(tx.forecast && tx.forecast.remaining === 0 && { textDecoration: 'line-through', color: 'text.secondary' })
+          }}
+        >
           {amountPrefix(tx.type)}{formatBRL(tx.amount)}
         </Typography>
 
@@ -255,11 +311,13 @@ function TransactionRow({ tx, categories, onEdit, onPickCategory, onTogglePaid, 
               {tx.paid ? <CheckCircleIcon color="secondary" /> : <RadioButtonUncheckedIcon />}
             </IconButton>
           </Tooltip>
-          <Tooltip title="Excluir">
-            <IconButton onClick={(e) => { e.stopPropagation(); onDelete(tx); }} sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}>
-              <DeleteOutlineIcon />
-            </IconButton>
-          </Tooltip>
+          {!tx.pairedWith && (
+            <Tooltip title="Excluir">
+              <IconButton onClick={(e) => { e.stopPropagation(); onDelete(tx); }} sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}>
+                <DeleteOutlineIcon />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
       </Box>
     </SwipeRow>
@@ -314,7 +372,9 @@ export function TransactionList({
     return transactions
       .filter(t => {
         if (term && ![t.description, t.category, t.account].some(v => v?.toLowerCase().includes(term))) return false;
-        if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+        // "Todos" = gastos e entradas. Transferências (Pix entre suas contas, fatura, aplicação) não mudam
+        // o saldo e ficam no filtro próprio, senão poluem a lista.
+        if (typeFilter === 'all' ? t.type === 'transfer' : t.type !== typeFilter) return false;
         if (pendingOnly && t.paid) return false;
         if (accountFilter && t.account !== accountFilter) return false;
         if (categoryFilter && (t.category !== categoryFilter || t.type !== 'expense')) return false;
@@ -333,19 +393,24 @@ export function TransactionList({
       });
   }, [transactions, searchTerm, typeFilter, pendingOnly, accountFilter, categoryFilter, startDate, endDate, minAmount, maxAmount, sortBy, sortOrder]);
 
+  // Na aba de transferências, as duas pontas de um Pix entre suas contas viram uma linha só.
+  const rows = useMemo(() => (typeFilter === 'transfer' ? pairTransfers(filtered) : filtered), [filtered, typeFilter]);
+  const transferCount = useMemo(() => pairTransfers(transactions.filter(t => t.type === 'transfer')).length, [transactions]);
+
   // Agrupado por dia quando ordenado por data; senão, um grupo só.
   const groups = useMemo(() => {
-    if (sortBy !== 'date') return [{ key: 'all', title: null, items: filtered }];
+    if (sortBy !== 'date') return [{ key: 'all', title: null, items: rows }];
     const byDay = [];
-    for (const tx of filtered) {
+    for (const tx of rows) {
       const last = byDay[byDay.length - 1];
       if (last && last.key === tx.date) last.items.push(tx);
       else byDay.push({ key: tx.date, title: formatDayHeader(tx.date), items: [tx] });
     }
     return byDay;
-  }, [filtered, sortBy]);
+  }, [rows, sortBy]);
 
-  const balance = filtered.reduce((sum, t) => (t.type === 'transfer' ? sum : t.type === 'expense' ? sum - t.amount : sum + t.amount), 0);
+  // Saldo sem contar duas vezes: a previsão entra só pelo que falta receber.
+  const balance = rows.reduce((sum, t) => (t.type === 'transfer' ? sum : t.type === 'expense' ? sum - t.amount : sum + incomeContribution(t)), 0);
 
   return (
     <Card sx={{ overflow: 'hidden' }}>
@@ -395,7 +460,7 @@ export function TransactionList({
           {TYPE_FILTERS.map(f => (
             <Chip
               key={f.value}
-              label={f.label}
+              label={f.value === 'transfer' && transferCount ? `${f.label} (${transferCount})` : f.label}
               clickable
               variant="outlined"
               aria-pressed={typeFilter === f.value}
@@ -447,8 +512,8 @@ export function TransactionList({
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, minHeight: 32 }}>
           <Typography variant="caption" color="text.secondary">
-            {filtered.length} {filtered.length === 1 ? 'lançamento' : 'lançamentos'}
-            {filtered.length > 0 && <> · saldo <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>{formatSignedBRL(Math.round(balance * 100) / 100)}</Box></>}
+            {rows.length} {rows.length === 1 ? 'lançamento' : 'lançamentos'}
+            {rows.length > 0 && <> · saldo <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>{formatSignedBRL(Math.round(balance * 100) / 100)}</Box></>}
           </Typography>
           {hasAnyFilter && (
             <Button size="small" color="inherit" onClick={clearAll} sx={{ minHeight: 32, color: 'text.secondary' }}>
@@ -462,7 +527,7 @@ export function TransactionList({
       </Box>
 
       {/* Lista */}
-      {filtered.length === 0 ? (
+      {rows.length === 0 ? (
         <Box sx={{ p: 5, textAlign: 'center', borderTop: '1px solid', borderColor: 'divider' }}>
           <Typography variant="body2" color="text.secondary">Nenhum lançamento encontrado.</Typography>
           {hasAnyFilter && <Button onClick={clearAll} sx={{ mt: 1 }}>Limpar filtros</Button>}
